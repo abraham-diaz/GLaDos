@@ -18,8 +18,15 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
-  const result = await entryService.create(body);
-  res.status(201).json(result);
+  try {
+    const result = await entryService.create(body);
+    res.status(201).json(result);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to create entry',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
 });
 
 export default router;

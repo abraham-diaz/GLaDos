@@ -1,6 +1,11 @@
 import { config } from '../config';
 import { HealthChecker, ServiceStatus } from '../types/health.types';
 
+export interface EmbeddingResponse {
+  embedding: number[];
+  dimension: number;
+}
+
 class AiService implements HealthChecker {
   name = 'ai-service';
   private baseUrl: string;
@@ -13,7 +18,7 @@ class AiService implements HealthChecker {
     const start = Date.now();
     try {
       const response = await fetch(`${this.baseUrl}/health`, {
-        signal: AbortSignal.timeout(5000), // Timeout de 5s
+        signal: AbortSignal.timeout(5000),
       });
 
       if (response.ok) {
@@ -33,6 +38,20 @@ class AiService implements HealthChecker {
         error: error instanceof Error ? error.message : 'Connection failed',
       };
     }
+  }
+
+  async getEmbedding(text: string): Promise<EmbeddingResponse> {
+    const response = await fetch(`${this.baseUrl}/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI service error: ${response.status}`);
+    }
+
+    return response.json() as Promise<EmbeddingResponse>;
   }
 }
 
