@@ -95,19 +95,24 @@ class ConceptService {
    * Refuerza un concepto existente:
    * - Incrementa weight
    * - Actualiza last_seen_at
+   * - Cambia estado a 'recurrente' si weight >= 2
    */
   async reinforce(conceptId: string): Promise<void> {
     const pool = postgresService.getPool();
 
-    await pool.query(
+    // Incrementar weight y actualizar estado si corresponde
+    const result = await pool.query<{ weight: number; state: string }>(
       `UPDATE concepts
        SET weight = weight + 1,
-           last_seen_at = NOW()
-       WHERE id = $1`,
+           last_seen_at = NOW(),
+           state = CASE WHEN weight + 1 >= 2 THEN 'recurrente' ELSE state END
+       WHERE id = $1
+       RETURNING weight, state`,
       [conceptId]
     );
 
-    console.log(`[Concept] REINFORCED concept: ${conceptId}`);
+    const { weight, state } = result.rows[0];
+    console.log(`[Concept] REINFORCED concept: ${conceptId} (weight: ${weight}, state: ${state})`);
   }
 
   /**
