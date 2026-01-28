@@ -1,17 +1,19 @@
 import { randomUUID } from 'crypto';
 import { postgresService } from './postgres.service';
+import { aiService } from './ai.service';
 import { SimilarConcept, ConceptAssociationResult, ConceptState } from '../types/concept.types';
 
-const CONCEPT_SIMILARITY_THRESHOLD = 0.7;
+// Umbral para similitud semántica (MPNet - embedding_topic)
+const TOPIC_SIMILARITY_THRESHOLD = 0.55;
 
 class ConceptService {
   /**
-   * Busca conceptos similares basándose en similitud coseno del embedding
+   * Busca conceptos similares basándose en embedding_topic (MPNet)
    * Retorna conceptos con similitud >= threshold, ordenados por similitud descendente
    */
-  async findSimilar(embedding: number[], limit = 5): Promise<SimilarConcept[]> {
+  async findSimilarByTopic(embeddingTopic: number[], limit = 5): Promise<SimilarConcept[]> {
     const pool = postgresService.getPool();
-    const embeddingStr = `[${embedding.join(',')}]`;
+    const embeddingStr = `[${embeddingTopic.join(',')}]`;
 
     // Usar 1 - distancia coseno = similitud coseno
     // pgvector usa <=> para distancia coseno
@@ -24,14 +26,14 @@ class ConceptService {
            state,
            summary,
            weight,
-           1 - (embedding <=> $1::vector) as similarity
+           1 - (embedding_topic <=> $1::vector) as similarity
          FROM concepts
-         WHERE embedding IS NOT NULL
+         WHERE embedding_topic IS NOT NULL
        ) sub
        WHERE similarity >= $2
        ORDER BY similarity DESC
        LIMIT $3`,
-      [embeddingStr, CONCEPT_SIMILARITY_THRESHOLD, limit]
+      [embeddingStr, TOPIC_SIMILARITY_THRESHOLD, limit]
     );
 
     return result.rows;
@@ -53,21 +55,39 @@ class ConceptService {
   }
 
   /**
-   * Crea un nuevo concepto
+   * Crea un nuevo concepto con ambos embeddings y summary
    */
-  async create(text: string, embedding: number[]): Promise<string> {
+  async create(
+    text: string,
+    embeddingPhrase: number[],
+    embeddingTopic: number[]
+  ): Promise<string> {
     const pool = postgresService.getPool();
     const id = randomUUID();
     const title = this.generateTitle(text);
-    const embeddingStr = `[${embedding.join(',')}]`;
+    const embeddingPhraseStr = `[${embeddingPhrase.join(',')}]`;
+    const embeddingTopicStr = `[${embeddingTopic.join(',')}]`;
+
+    // Generar summary con KeyBERT
+    let summary: string | null = null;
+    try {
+      const { summary: generatedSummary, keywords } = await aiService.getSummary(text);
+      summary = generatedSummary;
+      console.log(`[Concept] Keywords extracted: [${keywords.join(', ')}]`);
+    } catch (error) {
+      console.error('[Concept] Error generating summary:', error);
+    }
 
     await pool.query(
-      `INSERT INTO concepts (id, title, type, state, weight, embedding)
-       VALUES ($1, $2, 'idea', 'cruda', 1, $3)`,
-      [id, title, embeddingStr]
+      `INSERT INTO concepts (id, title, type, state, weight, embedding, embedding_topic, summary)
+       VALUES ($1, $2, 'idea', 'cruda', 1, $3, $4, $5)`,
+      [id, title, embeddingPhraseStr, embeddingTopicStr, summary]
     );
 
     console.log(`[Concept] CREATED new concept: "${title}" (${id})`);
+    if (summary) {
+      console.log(`[Concept] Summary: "${summary}"`);
+    }
     return id;
   }
 
@@ -106,25 +126,23 @@ class ConceptService {
     console.log(`[Concept] LINKED entry ${entryId} -> concept ${conceptId} (similarity: ${similarity.toFixed(3)})`);
   }
 
-  /**
-   * Determina si un concepto debe devolver contexto al usuario
-   * Regla: weight >= 2 AND state != 'cruda'
-   */
-  private shouldReturnContext(concept: SimilarConcept): boolean {
-    return concept.weight >= 2 && concept.state !== 'cruda';
-  }
+  // TODO: Activar cuando termines de calibrar
+  // private shouldReturnContext(concept: SimilarConcept): boolean {
+  //   return concept.weight >= 2 && concept.state !== 'cruda';
+  // }
 
   /**
    * Procesa automáticamente una entry para asociarla/crear concepto
-   * Esta es la función principal que se llama después de crear una entry
+   * Usa embedding_topic (MPNet) para encontrar similitud semántica
    */
   async processEntry(
     entryId: string,
     text: string,
-    embedding: number[]
+    embeddingPhrase: number[],
+    embeddingTopic: number[]
   ): Promise<ConceptAssociationResult> {
-    // Buscar conceptos similares (solo el mejor match)
-    const similar = await this.findSimilar(embedding, 1);
+    // Buscar conceptos similares por tema (solo el mejor match)
+    const similar = await this.findSimilarByTopic(embeddingTopic, 1);
 
     if (similar.length > 0) {
       // Caso: concepto similar encontrado -> asociar y reforzar
@@ -133,32 +151,26 @@ class ConceptService {
       await this.linkEntry(entryId, match.id, match.similarity);
       await this.reinforce(match.id);
 
-      console.log(`[Concept] Entry matched existing concept: "${match.title}" (similarity: ${match.similarity.toFixed(3)}, weight: ${match.weight}, state: ${match.state})`);
+      console.log(`[Concept] Entry matched existing concept: "${match.title}" (topic similarity: ${match.similarity.toFixed(3)}, weight: ${match.weight}, state: ${match.state})`);
 
-      const result: ConceptAssociationResult = {
+      // MODO INSTRUMENTACIÓN: siempre devolver contexto para calibrar
+      return {
         action: 'associated',
         conceptId: match.id,
         conceptTitle: match.title,
         similarity: match.similarity,
-      };
-
-      // Solo devolver contexto si cumple las condiciones
-      if (this.shouldReturnContext(match)) {
-        result.context = {
+        context: {
           conceptId: match.id,
           title: match.title,
           state: match.state,
           summary: match.summary,
-        };
-        console.log(`[Concept] Context returned for concept: "${match.title}"`);
-      } else {
-        console.log(`[Concept] No context returned (weight: ${match.weight}, state: ${match.state})`);
-      }
-
-      return result;
+          similarity: match.similarity,
+          weight: match.weight + 1, // +1 porque ya se reforzó
+        },
+      };
     } else {
       // Caso: no hay concepto similar -> crear nuevo
-      const conceptId = await this.create(text, embedding);
+      const conceptId = await this.create(text, embeddingPhrase, embeddingTopic);
       const title = this.generateTitle(text);
 
       // Vincular la entry al nuevo concepto
@@ -170,6 +182,42 @@ class ConceptService {
         conceptTitle: title,
       };
     }
+  }
+
+  /**
+   * Lista todos los conceptos con sus estadísticas
+   */
+  async list(): Promise<{
+    id: string;
+    title: string;
+    type: string;
+    state: ConceptState;
+    weight: number;
+    summary: string | null;
+    created_at: Date;
+    last_seen_at: Date;
+    entry_count: number;
+  }[]> {
+    const pool = postgresService.getPool();
+
+    const result = await pool.query(`
+      SELECT
+        c.id,
+        c.title,
+        c.type,
+        c.state,
+        c.weight,
+        c.summary,
+        c.created_at,
+        c.last_seen_at,
+        COUNT(ec.entry_id)::int as entry_count
+      FROM concepts c
+      LEFT JOIN entry_concept ec ON c.id = ec.concept_id
+      GROUP BY c.id
+      ORDER BY c.last_seen_at DESC
+    `);
+
+    return result.rows;
   }
 }
 

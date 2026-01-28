@@ -41,7 +41,8 @@ CREATE TABLE concepts (
   state concept_state NOT NULL,
   summary TEXT,
   weight FLOAT NOT NULL DEFAULT 0,
-  embedding VECTOR(384),
+  embedding VECTOR(384),        -- MiniLM: similitud de frase
+  embedding_topic VECTOR(768),  -- MPNet: similitud semántica/tema
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   last_seen_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -72,10 +73,15 @@ CREATE TABLE weekly_summaries (
 );
 
 -- Índices para optimización
--- Búsqueda semántica
+-- Búsqueda semántica (frase)
 CREATE INDEX concepts_embedding_idx
 ON concepts
 USING ivfflat (embedding vector_cosine_ops);
+
+-- Búsqueda semántica (tema)
+CREATE INDEX concepts_embedding_topic_idx
+ON concepts
+USING ivfflat (embedding_topic vector_cosine_ops);
 
 -- Estados activos
 CREATE INDEX concepts_state_idx ON concepts(state);

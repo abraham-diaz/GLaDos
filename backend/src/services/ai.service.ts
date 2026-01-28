@@ -6,6 +6,18 @@ export interface EmbeddingResponse {
   dimension: number;
 }
 
+export interface DualEmbeddingResponse {
+  embedding_phrase: number[];
+  embedding_topic: number[];
+  dimension_phrase: number;
+  dimension_topic: number;
+}
+
+export interface SummaryResponse {
+  summary: string;
+  keywords: string[];
+}
+
 class AiService implements HealthChecker {
   name = 'ai-service';
   private baseUrl: string;
@@ -52,6 +64,34 @@ class AiService implements HealthChecker {
     }
 
     return response.json() as Promise<EmbeddingResponse>;
+  }
+
+  async getDualEmbedding(text: string): Promise<DualEmbeddingResponse> {
+    const response = await fetch(`${this.baseUrl}/analyze/dual`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI service error: ${response.status}`);
+    }
+
+    return response.json() as Promise<DualEmbeddingResponse>;
+  }
+
+  async getSummary(text: string): Promise<SummaryResponse> {
+    const response = await fetch(`${this.baseUrl}/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI service error: ${response.status}`);
+    }
+
+    return response.json() as Promise<SummaryResponse>;
   }
 }
 
