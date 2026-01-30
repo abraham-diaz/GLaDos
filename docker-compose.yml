@@ -16,12 +16,8 @@ services:
       - "5432:5432"
 
   backend:
-    image: node:20
+    build: ./backend
     container_name: glados-backend
-    working_dir: /app
-    command: sh -c "npm install && npm run build && npm run start"
-    volumes:
-      - ./backend:/app
     ports:
       - "3000:3000"
     environment:
