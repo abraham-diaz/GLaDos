@@ -1,4 +1,4 @@
-const CACHE_NAME = 'glados-v2';
+const CACHE_NAME = 'glados-v3';
 const STATIC_ASSETS = [
   '/',
   '/styles.css',

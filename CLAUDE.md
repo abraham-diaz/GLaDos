@@ -60,15 +60,39 @@ Patrón de capas: **Routes → Services → Queries → PostgreSQL**
 
 - Se vuelve `recurrente` al alcanzar peso >= 2
 
+## Autenticación
+
+Sistema JWT para PWA con tokens de larga duración (90 días por defecto).
+
+### Variables de entorno
+
+```bash
+AUTH_USERNAME=admin          # Usuario único
+AUTH_PASSWORD=secret         # Contraseña
+JWT_SECRET=random-key        # Clave para firmar tokens
+JWT_EXPIRES_IN=90d          # Duración del token
+```
+
+### Flujo
+
+1. Usuario accede a la PWA → ve pantalla de login
+2. Envía credenciales a `POST /api/auth/login`
+3. Backend valida y devuelve JWT
+4. Frontend guarda token en localStorage
+5. Todas las requests incluyen `Authorization: Bearer <token>`
+6. Si token expira (401), muestra login de nuevo
+
 ## Endpoints
 
-| Ruta              | Método | Descripción                    |
-|-------------------|--------|--------------------------------|
-| `/health`         | GET    | Health check (DB + AI service) |
-| `/api/entries`    | POST   | Crear nueva entrada            |
-| `/api/concepts`   | GET    | Listar conceptos               |
-| `/api/concepts/search` | POST | Búsqueda semántica de conceptos |
-| `/api/analyze`    | POST   | Análisis de texto (legacy)     |
+| Ruta              | Método | Auth | Descripción                    |
+|-------------------|--------|------|--------------------------------|
+| `/health`         | GET    | No   | Health check (DB + AI service) |
+| `/api/auth/login` | POST   | No   | Login, devuelve JWT            |
+| `/api/auth/verify`| GET    | Sí   | Verificar token válido         |
+| `/api/entries`    | POST   | Sí   | Crear nueva entrada            |
+| `/api/concepts`   | GET    | Sí   | Listar conceptos               |
+| `/api/concepts/search` | POST | Sí | Búsqueda semántica de conceptos |
+| `/api/analyze`    | POST   | Sí   | Análisis de texto (legacy)     |
 
 ## Comandos de Desarrollo
 

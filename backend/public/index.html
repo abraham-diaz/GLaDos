@@ -13,6 +13,25 @@
   <title>GLaDos</title>
 </head>
 <body>
+  <!-- Login Screen -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-box">
+      <h2>GLaDos</h2>
+      <div class="form-group">
+        <label for="loginUser">Usuario</label>
+        <input type="text" id="loginUser" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="loginPass">Contrase&ntilde;a</label>
+        <input type="password" id="loginPass" autocomplete="current-password">
+      </div>
+      <button id="loginBtn" onclick="doLogin()">Entrar</button>
+      <div id="loginError" class="error"></div>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="appContainer" class="hidden">
   <header>
     <h1>GLaDos</h1>
     <span>Sistema de Gesti&oacute;n de Conocimiento Personal</span>
@@ -42,6 +61,7 @@
       </div>
     </section>
   </main>
+  </div>
 
   <script src="/app.js"></script>
 </body>

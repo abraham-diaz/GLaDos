@@ -1,9 +1,129 @@
 (function() {
   'use strict';
 
+  var TOKEN_KEY = 'glados_token';
   var isSearchMode = false;
 
-  // Entry submission
+  // ==================== Auth ====================
+
+  function getToken() {
+    return localStorage.getItem(TOKEN_KEY);
+  }
+
+  function setToken(token) {
+    localStorage.setItem(TOKEN_KEY, token);
+  }
+
+  function clearToken() {
+    localStorage.removeItem(TOKEN_KEY);
+  }
+
+  function showLogin() {
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('appContainer').classList.add('hidden');
+    document.getElementById('loginUser').focus();
+  }
+
+  function showApp() {
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('appContainer').classList.remove('hidden');
+    loadConcepts();
+  }
+
+  async function checkAuth() {
+    var token = getToken();
+    if (!token) {
+      showLogin();
+      return;
+    }
+
+    try {
+      var res = await fetch('/api/auth/verify', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+
+      if (res.ok) {
+        showApp();
+      } else {
+        clearToken();
+        showLogin();
+      }
+    } catch (err) {
+      // Network error - try to show app anyway (offline mode)
+      showApp();
+    }
+  }
+
+  async function doLogin() {
+    var userInput = document.getElementById('loginUser');
+    var passInput = document.getElementById('loginPass');
+    var errorDiv = document.getElementById('loginError');
+    var btn = document.getElementById('loginBtn');
+
+    var username = userInput.value.trim();
+    var password = passInput.value;
+
+    if (!username || !password) {
+      errorDiv.textContent = 'Introduce usuario y contrase\u00f1a';
+      errorDiv.classList.add('visible');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Entrando...';
+    errorDiv.classList.remove('visible');
+
+    try {
+      var res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password })
+      });
+
+      var data = await res.json();
+
+      if (!res.ok) {
+        errorDiv.textContent = data.error || 'Error de autenticaci\u00f3n';
+        errorDiv.classList.add('visible');
+        return;
+      }
+
+      setToken(data.token);
+      passInput.value = '';
+      showApp();
+    } catch (err) {
+      errorDiv.textContent = 'Error de conexi\u00f3n';
+      errorDiv.classList.add('visible');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Entrar';
+    }
+  }
+
+  // Authenticated fetch wrapper
+  async function authFetch(url, options) {
+    options = options || {};
+    options.headers = options.headers || {};
+
+    var token = getToken();
+    if (token) {
+      options.headers['Authorization'] = 'Bearer ' + token;
+    }
+
+    var res = await fetch(url, options);
+
+    // Handle 401 - token expired
+    if (res.status === 401) {
+      clearToken();
+      showLogin();
+      throw new Error('Session expired');
+    }
+
+    return res;
+  }
+
+  // ==================== Entry ====================
+
   async function submitEntry() {
     var textarea = document.getElementById('entryText');
     var btn = document.getElementById('submitBtn');
@@ -18,7 +138,7 @@
     responseBox.classList.remove('visible');
 
     try {
-      var res = await fetch('/api/entries', {
+      var res = await authFetch('/api/entries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw_text: text })
@@ -45,15 +165,18 @@
       textarea.value = '';
       loadConcepts();
     } catch (err) {
-      responseContent.textContent = 'Error de conexi\u00f3n: ' + err.message;
-      responseBox.classList.add('visible');
+      if (err.message !== 'Session expired') {
+        responseContent.textContent = 'Error de conexi\u00f3n: ' + err.message;
+        responseBox.classList.add('visible');
+      }
     } finally {
       btn.disabled = false;
       btn.textContent = 'Enviar';
     }
   }
 
-  // Load all concepts
+  // ==================== Concepts ====================
+
   async function loadConcepts() {
     var list = document.getElementById('conceptsList');
     var searchInfo = document.getElementById('searchInfo');
@@ -61,7 +184,7 @@
     isSearchMode = false;
 
     try {
-      var res = await fetch('/api/concepts');
+      var res = await authFetch('/api/concepts');
       var data = await res.json();
       var concepts = Array.isArray(data) ? data : data.concepts || [];
 
@@ -74,11 +197,12 @@
         return renderConceptCard(c);
       }).join('');
     } catch (err) {
-      list.innerHTML = '<div class="empty-state">Error al cargar conceptos.</div>';
+      if (err.message !== 'Session expired') {
+        list.innerHTML = '<div class="empty-state">Error al cargar conceptos.</div>';
+      }
     }
   }
 
-  // Semantic search
   async function searchConcepts() {
     var input = document.getElementById('searchInput');
     var list = document.getElementById('conceptsList');
@@ -94,7 +218,7 @@
     isSearchMode = true;
 
     try {
-      var res = await fetch('/api/concepts/search', {
+      var res = await authFetch('/api/concepts/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: query, limit: 10 })
@@ -119,17 +243,17 @@
         return renderConceptCard(c, true);
       }).join('');
     } catch (err) {
-      list.innerHTML = '<div class="empty-state">Error de conexi\u00f3n: ' + escapeHtml(err.message) + '</div>';
+      if (err.message !== 'Session expired') {
+        list.innerHTML = '<div class="empty-state">Error de conexi\u00f3n: ' + escapeHtml(err.message) + '</div>';
+      }
     }
   }
 
-  // Clear search and reload
   function clearSearch() {
     document.getElementById('searchInput').value = '';
     loadConcepts();
   }
 
-  // Render a concept card
   function renderConceptCard(c, showSimilarity) {
     var similarityBadge = '';
     if (showSimilarity && c.similarity !== undefined) {
@@ -147,7 +271,8 @@
     '</div>';
   }
 
-  // Escape HTML to prevent XSS
+  // ==================== Utils ====================
+
   function escapeHtml(str) {
     if (!str) return '';
     var div = document.createElement('div');
@@ -155,8 +280,22 @@
     return div.innerHTML;
   }
 
-  // Initialize
+  // ==================== Init ====================
+
   function init() {
+    // Login: Enter to submit
+    document.getElementById('loginPass').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        doLogin();
+      }
+    });
+
+    document.getElementById('loginUser').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        document.getElementById('loginPass').focus();
+      }
+    });
+
     // Entry textarea: Ctrl+Enter to submit
     document.getElementById('entryText').addEventListener('keydown', function(e) {
       if (e.ctrlKey && e.key === 'Enter') {
@@ -171,16 +310,17 @@
       }
     });
 
-    // Load initial concepts
-    loadConcepts();
-
     // Register service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js');
     }
+
+    // Check authentication
+    checkAuth();
   }
 
   // Expose functions globally for onclick handlers
+  window.doLogin = doLogin;
   window.submitEntry = submitEntry;
   window.searchConcepts = searchConcepts;
   window.clearSearch = clearSearch;
