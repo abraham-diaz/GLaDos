@@ -413,4 +413,17 @@ button:disabled {
     flex-direction: column;
     padding: 1rem;
   }
+
+  .search-box {
+    flex-wrap: wrap;
+  }
+
+  .search-box input {
+    width: 100%;
+    flex: none;
+  }
+
+  .search-box button {
+    flex: 1;
+  }
 }
