@@ -48,4 +48,16 @@ export const conceptQueries = {
     GROUP BY c.id
     ORDER BY c.last_seen_at DESC
   `,
+
+  search: `
+    SELECT id, title, type, state, summary, weight, similarity
+    FROM (
+      SELECT id, title, type, state, summary, weight,
+             1 - (embedding_topic <=> $1::vector) as similarity
+      FROM concepts
+      WHERE embedding_topic IS NOT NULL
+    ) sub
+    ORDER BY similarity DESC
+    LIMIT $2
+  `,
 } as const;

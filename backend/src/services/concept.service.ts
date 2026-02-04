@@ -143,6 +143,30 @@ class ConceptService {
   }
 
   /**
+   * Búsqueda semántica de conceptos por texto
+   */
+  async search(query: string, limit = 10): Promise<{
+    id: string;
+    title: string;
+    type: string;
+    state: ConceptState;
+    summary: string | null;
+    weight: number;
+    similarity: number;
+  }[]> {
+    const pool = postgresService.getPool();
+
+    // Obtener embedding del query
+    const { embedding_topic } = await aiService.getDualEmbedding(query);
+    const embeddingStr = `[${embedding_topic.join(',')}]`;
+
+    const result = await pool.query(conceptQueries.search, [embeddingStr, limit]);
+
+    console.log(`[Concept] SEARCH for "${query}" returned ${result.rows.length} results`);
+    return result.rows;
+  }
+
+  /**
    * Lista todos los conceptos con sus estadísticas
    */
   async list(): Promise<{

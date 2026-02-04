@@ -67,6 +67,7 @@ Patrón de capas: **Routes → Services → Queries → PostgreSQL**
 | `/health`         | GET    | Health check (DB + AI service) |
 | `/api/entries`    | POST   | Crear nueva entrada            |
 | `/api/concepts`   | GET    | Listar conceptos               |
+| `/api/concepts/search` | POST | Búsqueda semántica de conceptos |
 | `/api/analyze`    | POST   | Análisis de texto (legacy)     |
 
 ## Comandos de Desarrollo

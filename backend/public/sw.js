@@ -1,5 +1,14 @@
-const CACHE_NAME = 'glados-v1';
-const STATIC_ASSETS = ['/', '/manifest.json', '/icon-192.svg', '/icon-512.svg'];
+const CACHE_NAME = 'glados-v2';
+const STATIC_ASSETS = [
+  '/',
+  '/styles.css',
+  '/app.js',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-192.svg',
+  '/icon-512.svg'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
