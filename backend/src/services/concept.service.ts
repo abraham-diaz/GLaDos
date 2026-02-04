@@ -2,38 +2,20 @@ import { randomUUID } from 'crypto';
 import { postgresService } from './postgres.service';
 import { aiService } from './ai.service';
 import { SimilarConcept, ConceptAssociationResult, ConceptState } from '../types/concept.types';
-
-// Umbral para similitud semántica (MPNet - embedding_topic)
-const TOPIC_SIMILARITY_THRESHOLD = 0.55;
+import { CONCEPT } from '../constants';
+import { conceptQueries } from '../queries/concept.queries';
 
 class ConceptService {
   /**
    * Busca conceptos similares basándose en embedding_topic (MPNet)
-   * Retorna conceptos con similitud >= threshold, ordenados por similitud descendente
    */
   async findSimilarByTopic(embeddingTopic: number[], limit = 5): Promise<SimilarConcept[]> {
     const pool = postgresService.getPool();
     const embeddingStr = `[${embeddingTopic.join(',')}]`;
 
-    // Usar 1 - distancia coseno = similitud coseno
-    // pgvector usa <=> para distancia coseno
     const result = await pool.query<SimilarConcept>(
-      `SELECT id, title, state, summary, weight, similarity
-       FROM (
-         SELECT
-           id,
-           title,
-           state,
-           summary,
-           weight,
-           1 - (embedding_topic <=> $1::vector) as similarity
-         FROM concepts
-         WHERE embedding_topic IS NOT NULL
-       ) sub
-       WHERE similarity >= $2
-       ORDER BY similarity DESC
-       LIMIT $3`,
-      [embeddingStr, TOPIC_SIMILARITY_THRESHOLD, limit]
+      conceptQueries.findSimilarByTopic,
+      [embeddingStr, CONCEPT.TOPIC_SIMILARITY_THRESHOLD, limit]
     );
 
     return result.rows;
@@ -41,7 +23,6 @@ class ConceptService {
 
   /**
    * Genera un título simple a partir del texto
-   * Usa las primeras palabras (máximo 5 palabras o 50 caracteres)
    */
   private generateTitle(text: string): string {
     const words = text.trim().split(/\s+/).slice(0, 5);
@@ -78,11 +59,7 @@ class ConceptService {
       console.error('[Concept] Error generating summary:', error);
     }
 
-    await pool.query(
-      `INSERT INTO concepts (id, title, type, state, weight, embedding, embedding_topic, summary)
-       VALUES ($1, $2, 'idea', 'cruda', 1, $3, $4, $5)`,
-      [id, title, embeddingPhraseStr, embeddingTopicStr, summary]
-    );
+    await pool.query(conceptQueries.create, [id, title, embeddingPhraseStr, embeddingTopicStr, summary]);
 
     console.log(`[Concept] CREATED new concept: "${title}" (${id})`);
     if (summary) {
@@ -92,23 +69,14 @@ class ConceptService {
   }
 
   /**
-   * Refuerza un concepto existente:
-   * - Incrementa weight
-   * - Actualiza last_seen_at
-   * - Cambia estado a 'recurrente' si weight >= 2
+   * Refuerza un concepto existente
    */
   async reinforce(conceptId: string): Promise<void> {
     const pool = postgresService.getPool();
 
-    // Incrementar weight y actualizar estado si corresponde
     const result = await pool.query<{ weight: number; state: string }>(
-      `UPDATE concepts
-       SET weight = weight + 1,
-           last_seen_at = NOW(),
-           state = CASE WHEN weight + 1 >= 2 THEN 'recurrente' ELSE state END
-       WHERE id = $1
-       RETURNING weight, state`,
-      [conceptId]
+      conceptQueries.reinforce,
+      [conceptId, CONCEPT.MIN_WEIGHT_FOR_RECURRENT]
     );
 
     const { weight, state } = result.rows[0];
@@ -121,24 +89,13 @@ class ConceptService {
   async linkEntry(entryId: string, conceptId: string, similarity: number): Promise<void> {
     const pool = postgresService.getPool();
 
-    await pool.query(
-      `INSERT INTO entry_concept (entry_id, concept_id, similarity)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (entry_id, concept_id) DO NOTHING`,
-      [entryId, conceptId, similarity]
-    );
+    await pool.query(conceptQueries.linkEntry, [entryId, conceptId, similarity]);
 
     console.log(`[Concept] LINKED entry ${entryId} -> concept ${conceptId} (similarity: ${similarity.toFixed(3)})`);
   }
 
-  // TODO: Activar cuando termines de calibrar
-  // private shouldReturnContext(concept: SimilarConcept): boolean {
-  //   return concept.weight >= 2 && concept.state !== 'cruda';
-  // }
-
   /**
    * Procesa automáticamente una entry para asociarla/crear concepto
-   * Usa embedding_topic (MPNet) para encontrar similitud semántica
    */
   async processEntry(
     entryId: string,
@@ -146,11 +103,9 @@ class ConceptService {
     embeddingPhrase: number[],
     embeddingTopic: number[]
   ): Promise<ConceptAssociationResult> {
-    // Buscar conceptos similares por tema (solo el mejor match)
     const similar = await this.findSimilarByTopic(embeddingTopic, 1);
 
     if (similar.length > 0) {
-      // Caso: concepto similar encontrado -> asociar y reforzar
       const match = similar[0];
 
       await this.linkEntry(entryId, match.id, match.similarity);
@@ -170,15 +125,13 @@ class ConceptService {
           state: match.state,
           summary: match.summary,
           similarity: match.similarity,
-          weight: match.weight + 1, // +1 porque ya se reforzó
+          weight: match.weight + 1,
         },
       };
     } else {
-      // Caso: no hay concepto similar -> crear nuevo
       const conceptId = await this.create(text, embeddingPhrase, embeddingTopic);
       const title = this.generateTitle(text);
 
-      // Vincular la entry al nuevo concepto
       await this.linkEntry(entryId, conceptId, 1.0);
 
       return {
@@ -187,6 +140,30 @@ class ConceptService {
         conceptTitle: title,
       };
     }
+  }
+
+  /**
+   * Búsqueda semántica de conceptos por texto
+   */
+  async search(query: string, limit = 10): Promise<{
+    id: string;
+    title: string;
+    type: string;
+    state: ConceptState;
+    summary: string | null;
+    weight: number;
+    similarity: number;
+  }[]> {
+    const pool = postgresService.getPool();
+
+    // Obtener embedding del query
+    const { embedding_topic } = await aiService.getDualEmbedding(query);
+    const embeddingStr = `[${embedding_topic.join(',')}]`;
+
+    const result = await pool.query(conceptQueries.search, [embeddingStr, limit]);
+
+    console.log(`[Concept] SEARCH for "${query}" returned ${result.rows.length} results`);
+    return result.rows;
   }
 
   /**
@@ -204,24 +181,7 @@ class ConceptService {
     entry_count: number;
   }[]> {
     const pool = postgresService.getPool();
-
-    const result = await pool.query(`
-      SELECT
-        c.id,
-        c.title,
-        c.type,
-        c.state,
-        c.weight,
-        c.summary,
-        c.created_at,
-        c.last_seen_at,
-        COUNT(ec.entry_id)::int as entry_count
-      FROM concepts c
-      LEFT JOIN entry_concept ec ON c.id = ec.concept_id
-      GROUP BY c.id
-      ORDER BY c.last_seen_at DESC
-    `);
-
+    const result = await pool.query(conceptQueries.list);
     return result.rows;
   }
 }

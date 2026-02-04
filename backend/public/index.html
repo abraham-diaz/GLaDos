@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ff6600">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/styles.css">
+  <title>GLaDos</title>
+</head>
+<body>
+  <header>
+    <h1>GLaDos</h1>
+    <span>Sistema de Gesti&oacute;n de Conocimiento Personal</span>
+  </header>
+
+  <main>
+    <section class="panel entry-panel">
+      <div class="panel-title">Nueva entrada</div>
+      <textarea id="entryText" placeholder="Escribe una idea, error, aprendizaje o decisi&oacute;n..."></textarea>
+      <button id="submitBtn" onclick="submitEntry()">Enviar</button>
+      <div id="response" class="response-box">
+        <div class="label">Resultado</div>
+        <div id="responseContent"></div>
+      </div>
+    </section>
+
+    <section class="panel concepts-panel">
+      <div class="panel-title">Conceptos</div>
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Buscar sem&aacute;nticamente...">
+        <button onclick="searchConcepts()">Buscar</button>
+        <button class="btn-clear" onclick="clearSearch()">Limpiar</button>
+      </div>
+      <div id="searchInfo" class="search-info" style="display: none;"></div>
+      <div id="conceptsList" class="concepts-list">
+        <div class="loading">Cargando conceptos...</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

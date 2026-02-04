@@ -18,4 +18,27 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
+router.post('/search', async (req: Request, res: Response) => {
+  try {
+    const { query, limit } = req.body;
+
+    if (!query || typeof query !== 'string' || !query.trim()) {
+      res.status(400).json({ error: 'Query is required' });
+      return;
+    }
+
+    const concepts = await conceptService.search(query.trim(), limit || 10);
+    res.json({
+      query: query.trim(),
+      count: concepts.length,
+      concepts,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to search concepts',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 export default router;

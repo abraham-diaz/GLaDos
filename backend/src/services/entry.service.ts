@@ -3,6 +3,7 @@ import { postgresService } from './postgres.service';
 import { aiService } from './ai.service';
 import { conceptService } from './concept.service';
 import { CreateEntryRequest, CreateEntryResponse } from '../types/entry.types';
+import { entryQueries } from '../queries/entry.queries';
 
 class EntryService {
   async create(data: CreateEntryRequest): Promise<CreateEntryResponse> {
@@ -17,10 +18,7 @@ class EntryService {
     // Formato para pgvector: '[0.1, 0.2, ...]'
     const embeddingStr = `[${embedding_phrase.join(',')}]`;
 
-    await pool.query(
-      'INSERT INTO entries (id, raw_text, embedding) VALUES ($1, $2, $3)',
-      [id, data.raw_text, embeddingStr]
-    );
+    await pool.query(entryQueries.create, [id, data.raw_text, embeddingStr]);
 
     console.log(`[Entry] Entry created successfully: ${id}`);
 
