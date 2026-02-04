@@ -37,9 +37,8 @@ class AuthService {
    * Generates a JWT token
    */
   generateToken(username: string): string {
-    return jwt.sign({ username }, config.auth.jwtSecret, {
-      expiresIn: config.auth.jwtExpiresIn,
-    });
+    const expiresIn = config.auth.jwtExpiresIn as string;
+    return jwt.sign({ username }, config.auth.jwtSecret, { expiresIn });
   }
 
   /**
