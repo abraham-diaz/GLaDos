@@ -22,6 +22,10 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: postgres://glados:glados@postgres:5432/glados
+      AUTH_USERNAME: ${AUTH_USERNAME:-admin}
+      AUTH_PASSWORD: ${AUTH_PASSWORD:-changeme}
+      JWT_SECRET: ${JWT_SECRET:-glados-secret-change-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-90d}
     depends_on:
       - postgres
 
