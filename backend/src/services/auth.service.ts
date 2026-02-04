@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'crypto';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { config } from '../config';
 
 export interface TokenPayload {
@@ -37,8 +37,10 @@ class AuthService {
    * Generates a JWT token
    */
   generateToken(username: string): string {
-    const expiresIn = config.auth.jwtExpiresIn as string;
-    return jwt.sign({ username }, config.auth.jwtSecret, { expiresIn });
+    const options: SignOptions = {
+      expiresIn: config.auth.jwtExpiresIn as jwt.SignOptions['expiresIn'],
+    };
+    return jwt.sign({ username }, config.auth.jwtSecret, options);
   }
 
   /**
