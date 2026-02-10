@@ -49,17 +49,23 @@ class ConceptService {
     const embeddingPhraseStr = `[${embeddingPhrase.join(',')}]`;
     const embeddingTopicStr = `[${embeddingTopic.join(',')}]`;
 
-    // Generar summary con KeyBERT
+    // Clasificar tipo y generar summary en paralelo
     let summary: string | null = null;
+    let conceptType = 'idea';
     try {
-      const { summary: generatedSummary, keywords } = await aiService.getSummary(text);
-      summary = generatedSummary;
-      console.log(`[Concept] Keywords extracted: [${keywords.join(', ')}]`);
+      const [summaryResult, classifyResult] = await Promise.all([
+        aiService.getSummary(text),
+        aiService.classifyType(text),
+      ]);
+      summary = summaryResult.summary;
+      conceptType = classifyResult.concept_type;
+      console.log(`[Concept] Keywords extracted: [${summaryResult.keywords.join(', ')}]`);
+      console.log(`[Concept] Classified as: ${conceptType} (confidence: ${classifyResult.confidence})`);
     } catch (error) {
-      console.error('[Concept] Error generating summary:', error);
+      console.error('[Concept] Error generating summary/classifying:', error);
     }
 
-    await pool.query(conceptQueries.create, [id, title, embeddingPhraseStr, embeddingTopicStr, summary]);
+    await pool.query(conceptQueries.create, [id, title, conceptType, embeddingPhraseStr, embeddingTopicStr, summary]);
 
     console.log(`[Concept] CREATED new concept: "${title}" (${id})`);
     if (summary) {
@@ -200,6 +206,37 @@ class ConceptService {
     const pool = postgresService.getPool();
     const result = await pool.query(conceptQueries.list);
     return result.rows;
+  }
+  /**
+   * Reclasifica todos los conceptos existentes según el texto de su entry más relevante
+   */
+  async reclassifyAll(): Promise<{ total: number; updated: number; results: { id: string; from: string; to: string }[] }> {
+    const pool = postgresService.getPool();
+
+    const conceptsResult = await pool.query<{ id: string; raw_text: string }>(conceptQueries.getAllWithTopEntry);
+    const results: { id: string; from: string; to: string }[] = [];
+    let updated = 0;
+
+    for (const row of conceptsResult.rows) {
+      const currentType = (await pool.query(conceptQueries.getById, [row.id])).rows[0]?.type || 'idea';
+
+      try {
+        const { concept_type } = await aiService.classifyType(row.raw_text);
+
+        if (concept_type !== currentType) {
+          await pool.query(conceptQueries.updateType, [row.id, concept_type]);
+          updated++;
+          console.log(`[Reclassify] ${row.id}: ${currentType} -> ${concept_type}`);
+        }
+
+        results.push({ id: row.id, from: currentType, to: concept_type });
+      } catch (error) {
+        console.error(`[Reclassify] Error for ${row.id}:`, error);
+        results.push({ id: row.id, from: currentType, to: currentType });
+      }
+    }
+
+    return { total: conceptsResult.rows.length, updated, results };
   }
 }
 

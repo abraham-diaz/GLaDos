@@ -58,6 +58,11 @@ class SummaryResponse(BaseModel):
     keywords: list[str]
 
 
+class ClassifyResponse(BaseModel):
+    concept_type: str
+    confidence: float
+
+
 @app.get("/health")
 async def health():
     return {
@@ -135,4 +140,65 @@ async def summarize(req: AnalyzeRequest):
     return {
         "summary": summary,
         "keywords": keywords,
+    }
+
+
+# Patrones para clasificación por keywords
+import re
+
+CONCEPT_TYPE_PATTERNS: dict[str, list[str]] = {
+    "error": [
+        r"\berror\b", r"\bbug\b", r"\bcrash", r"\bfallo\b", r"\bfalla\b",
+        r"\broto\b", r"\brompe", r"\bexcep", r"\btype\s?error",
+        r"\bnull\b", r"\bno funciona", r"\bno anda", r"\bse cae\b",
+        r"\bse rompe", r"\bse cierra", r"\bpantalla.*(azul|negra)",
+        r"\bproblema\b", r"\bcuelga", r"\bpeta\b",
+    ],
+    "aprendizaje": [
+        r"\baprend", r"\bdescubr", r"\bentend[ií]", r"\bme di cuenta",
+        r"\bresulta que\b", r"\bhoy s[eé]", r"\btil\b",
+        r"\bno sab[ií]a", r"\bahora entiendo", r"\bme enter[eé]",
+        r"\bcomprendí", r"\bfunciona porque\b", r"\bla clave es\b",
+    ],
+    "decision": [
+        r"\bdecid", r"\bvamos a\b", r"\bmigrar", r"\bcambiar de\b",
+        r"\busar\b.*\ben vez de\b", r"\badoptamos\b", r"\belegimos\b",
+        r"\boptamos\b", r"\bel plan es\b", r"\bla estrategia\b",
+        r"\bpasarnos a\b", r"\bswitche", r"\breemplazar\b",
+    ],
+    "idea": [
+        r"\bse me ocurr", r"\bpodr[ií]amos", r"\bqu[eé] tal si\b",
+        r"\bestar[ií]a bien\b", r"\bpropongo\b", r"\bimagina\b",
+        r"\by si\b.*\b\?\b", r"\bser[ií]a.*(bueno|genial|interesante)",
+        r"\ba[ñn]adir\b", r"\bmodo\b.*\bnuevo", r"\bfeature\b",
+    ],
+}
+
+
+def classify_by_patterns(text: str) -> tuple[str, float]:
+    """Clasifica texto por patrones regex. Retorna (tipo, confianza)."""
+    text_lower = text.lower()
+    scores: dict[str, int] = {t: 0 for t in CONCEPT_TYPE_PATTERNS}
+
+    for concept_type, patterns in CONCEPT_TYPE_PATTERNS.items():
+        for pattern in patterns:
+            if re.search(pattern, text_lower):
+                scores[concept_type] += 1
+
+    total_matches = sum(scores.values())
+    if total_matches == 0:
+        return "idea", 0.0
+
+    best_type = max(scores, key=lambda k: scores[k])
+    confidence = scores[best_type] / max(total_matches, 1)
+    return best_type, round(confidence, 4)
+
+
+@app.post("/classify", response_model=ClassifyResponse)
+async def classify(req: AnalyzeRequest):
+    """Clasifica el texto en: idea, error, aprendizaje, decision"""
+    concept_type, confidence = classify_by_patterns(req.text)
+    return {
+        "concept_type": concept_type,
+        "confidence": confidence,
     }
