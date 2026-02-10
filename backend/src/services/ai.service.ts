@@ -18,6 +18,11 @@ export interface SummaryResponse {
   keywords: string[];
 }
 
+export interface ClassifyResponse {
+  concept_type: string;
+  confidence: number;
+}
+
 class AiService implements HealthChecker {
   name = 'ai-service';
   private baseUrl: string;
@@ -78,6 +83,20 @@ class AiService implements HealthChecker {
     }
 
     return response.json() as Promise<DualEmbeddingResponse>;
+  }
+
+  async classifyType(text: string): Promise<ClassifyResponse> {
+    const response = await fetch(`${this.baseUrl}/classify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI service error: ${response.status}`);
+    }
+
+    return response.json() as Promise<ClassifyResponse>;
   }
 
   async getSummary(text: string): Promise<SummaryResponse> {

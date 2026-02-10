@@ -18,6 +18,18 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
+router.post('/reclassify', async (_req: Request, res: Response) => {
+  try {
+    const result = await conceptService.reclassifyAll();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to reclassify concepts',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const detail = await conceptService.getDetail(req.params.id);

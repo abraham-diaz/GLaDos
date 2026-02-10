@@ -14,7 +14,7 @@ export const conceptQueries = {
 
   create: `
     INSERT INTO concepts (id, title, type, state, weight, embedding, embedding_topic, summary)
-    VALUES ($1, $2, 'idea', 'cruda', 1, $3, $4, $5)
+    VALUES ($1, $2, $3, 'cruda', 1, $4, $5, $6)
   `,
 
   reinforce: `
@@ -72,5 +72,18 @@ export const conceptQueries = {
     JOIN entries e ON e.id = ec.entry_id
     WHERE ec.concept_id = $1
     ORDER BY ec.similarity DESC
+  `,
+  getAllWithTopEntry: `
+    SELECT c.id, e.raw_text
+    FROM concepts c
+    JOIN entry_concept ec ON c.id = ec.concept_id
+    JOIN entries e ON e.id = ec.entry_id
+    WHERE ec.similarity = (
+      SELECT MAX(ec2.similarity) FROM entry_concept ec2 WHERE ec2.concept_id = c.id
+    )
+  `,
+
+  updateType: `
+    UPDATE concepts SET type = $2 WHERE id = $1
   `,
 } as const;
