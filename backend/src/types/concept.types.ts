@@ -38,3 +38,15 @@ export interface ConceptAssociationResult {
   similarity?: number;
   context?: ConceptContext;
 }
+
+export interface ConceptDetailEntry {
+  id: string;
+  raw_text: string;
+  created_at: Date;
+  similarity: number;
+}
+
+export interface ConceptDetail {
+  concept: Omit<Concept, 'embedding'>;
+  entries: ConceptDetailEntry[];
+}

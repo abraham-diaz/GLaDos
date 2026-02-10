@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { postgresService } from './postgres.service';
 import { aiService } from './ai.service';
-import { SimilarConcept, ConceptAssociationResult, ConceptState } from '../types/concept.types';
+import { SimilarConcept, ConceptAssociationResult, ConceptState, ConceptDetail, ConceptDetailEntry } from '../types/concept.types';
 import { CONCEPT } from '../constants';
 import { conceptQueries } from '../queries/concept.queries';
 
@@ -164,6 +164,23 @@ class ConceptService {
 
     console.log(`[Concept] SEARCH for "${query}" returned ${result.rows.length} results`);
     return result.rows;
+  }
+
+  /**
+   * Obtiene el detalle de un concepto con sus entries vinculadas
+   */
+  async getDetail(id: string): Promise<ConceptDetail | null> {
+    const pool = postgresService.getPool();
+
+    const conceptResult = await pool.query(conceptQueries.getById, [id]);
+    if (conceptResult.rows.length === 0) return null;
+
+    const entriesResult = await pool.query<ConceptDetailEntry>(conceptQueries.getLinkedEntries, [id]);
+
+    return {
+      concept: conceptResult.rows[0],
+      entries: entriesResult.rows,
+    };
   }
 
   /**

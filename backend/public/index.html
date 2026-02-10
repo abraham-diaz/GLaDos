@@ -56,11 +56,51 @@
         <button class="btn-clear" onclick="clearSearch()">Limpiar</button>
       </div>
       <div id="searchInfo" class="search-info" style="display: none;"></div>
+      <div class="filter-bar">
+        <select id="filterState" onchange="applyFilters()">
+          <option value="">Estado: Todos</option>
+          <option value="cruda">Cruda</option>
+          <option value="recurrente">Recurrente</option>
+          <option value="importante">Importante</option>
+          <option value="dormida">Dormida</option>
+          <option value="resuelta">Resuelta</option>
+        </select>
+        <select id="filterType" onchange="applyFilters()">
+          <option value="">Tipo: Todos</option>
+          <option value="idea">Idea</option>
+          <option value="error">Error</option>
+          <option value="aprendizaje">Aprendizaje</option>
+          <option value="decision">Decisi&oacute;n</option>
+        </select>
+      </div>
       <div id="conceptsList" class="concepts-list">
         <div class="loading">Cargando conceptos...</div>
       </div>
     </section>
   </main>
+
+  <!-- Concept Detail Modal -->
+  <div id="conceptModal" class="modal-overlay hidden" onclick="handleModalOverlayClick(event)">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle"></h2>
+        <button class="modal-close" onclick="closeConceptModal()">&times;</button>
+      </div>
+      <div id="modalBadges" class="modal-badges"></div>
+      <div class="modal-section">
+        <div class="modal-section-title">Resumen</div>
+        <div id="modalSummary" class="modal-summary"></div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-title">Evoluci&oacute;n de peso</div>
+        <div id="modalChart"></div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-title">Entries relacionadas</div>
+        <div id="modalEntries" class="modal-entries"></div>
+      </div>
+    </div>
+  </div>
   </div>
 
   <script src="/app.js"></script>

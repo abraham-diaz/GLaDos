@@ -18,6 +18,22 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const detail = await conceptService.getDetail(req.params.id);
+    if (!detail) {
+      res.status(404).json({ error: 'Concept not found' });
+      return;
+    }
+    res.json(detail);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to get concept detail',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 router.post('/search', async (req: Request, res: Response) => {
   try {
     const { query, limit } = req.body;
