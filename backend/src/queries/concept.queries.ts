@@ -60,4 +60,17 @@ export const conceptQueries = {
     ORDER BY similarity DESC
     LIMIT $2
   `,
+
+  getById: `
+    SELECT id, title, type, state, weight, summary, created_at, last_seen_at
+    FROM concepts WHERE id = $1
+  `,
+
+  getLinkedEntries: `
+    SELECT e.id, e.raw_text, e.created_at, ec.similarity
+    FROM entry_concept ec
+    JOIN entries e ON e.id = ec.entry_id
+    WHERE ec.concept_id = $1
+    ORDER BY ec.similarity DESC
+  `,
 } as const;
