@@ -7,9 +7,9 @@ services:
     container_name: glados-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: glados
-      POSTGRES_USER: glados
-      POSTGRES_PASSWORD: glados
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -22,11 +22,11 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgres://glados:glados@postgres:5432/glados
-      AUTH_USERNAME: ${AUTH_USERNAME:-admin}
-      AUTH_PASSWORD: ${AUTH_PASSWORD:-changeme}
-      JWT_SECRET: ${JWT_SECRET:-glados-secret-change-in-production}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-90d}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AUTH_USERNAME: ${AUTH_USERNAME}
+      AUTH_PASSWORD: ${AUTH_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
     depends_on:
       - postgres
 
