@@ -1,91 +1,101 @@
-# GLaDOs
+# GLaDOS - Personal Knowledge Management System
 
-Sistema de gestión de conocimiento personal con IA. Captura texto libre (ideas, errores, aprendizajes, decisiones), genera embeddings duales y organiza el conocimiento en conceptos que evolucionan automáticamente según su recurrencia.
+A system that captures free-form text (ideas, errors, learnings, decisions), generates dual embeddings, and organizes knowledge into concepts that automatically evolve based on recurrence.
+
+## Screenshots
+
+| Login | Main View |
+|:---:|:---:|
+| ![Login](docs/images/login.png) | ![Main View](docs/images/search.png) |
+
+| Concept Detail |
+|:---:|
+| ![Concept Detail](docs/images/concepts.png) |
 
 ## Features
 
-- **Embeddings duales** - MiniLM (384-dim) para similitud de frase + MPNet (768-dim) para similitud semántica
-- **Conceptos evolutivos** - Los conceptos cambian de estado automáticamente: `cruda → recurrente → importante → dormida → resuelta`
-- **Búsqueda semántica** - Encuentra conceptos relacionados usando similitud coseno con pgvector
-- **Extracción automática** - Keywords y resúmenes generados con KeyBERT
-- **PWA** - Interfaz web con soporte offline y autenticación JWT
+- **Dual embeddings** - MiniLM (384-dim) for sentence similarity + MPNet (768-dim) for semantic similarity
+- **Evolving concepts** - Concepts automatically change state: `raw → recurring → important → dormant → resolved`
+- **Semantic search** - Find related concepts using cosine similarity with pgvector
+- **Auto-extraction** - Keywords and summaries generated with KeyBERT
+- **PWA** - Web interface with offline support and JWT authentication
 
 ## Tech Stack
 
-| Capa | Tecnologías |
-|------|-------------|
+| Layer | Technologies |
+|-------|-------------|
 | **Backend** | Express 4, TypeScript 5, pg 8 |
 | **AI Service** | FastAPI, Sentence Transformers, KeyBERT |
-| **Base de datos** | PostgreSQL 16 + pgvector (IVFFlat) |
-| **Infraestructura** | Docker Compose |
+| **Database** | PostgreSQL 16 + pgvector (IVFFlat) |
+| **Infrastructure** | Docker Compose |
 
-## Arquitectura
+## Architecture
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │   PWA       │────▶│   Express   │────▶│  PostgreSQL │
 │  (Frontend) │     │  (Backend)  │     │  + pgvector │
 └─────────────┘     └──────┬──────┘     └─────────────┘
-                          │
-                          ▼
-                   ┌─────────────┐
-                   │   FastAPI   │
-                   │ (Embeddings)│
-                   └─────────────┘
+                           │
+                           ▼
+                    ┌─────────────┐
+                    │   FastAPI   │
+                    │ (Embeddings)│
+                    └─────────────┘
 ```
 
-**Flujo principal:**
-1. Usuario envía texto via `POST /api/entries`
-2. Backend solicita embeddings duales al AI service
-3. Búsqueda de conceptos similares por similitud coseno (umbral 0.55)
-4. Si hay match → refuerza el concepto existente
-5. Si no hay match → crea concepto nuevo con summary y keywords
+**Main flow:**
+1. User sends text via `POST /api/entries`
+2. Backend requests dual embeddings from the AI service
+3. Searches for similar concepts using cosine similarity (threshold 0.55)
+4. If match found → reinforces the existing concept
+5. If no match → creates a new concept with summary and keywords
 
 ## Getting Started
 
-### Requisitos
+### Prerequisites
 
-- Docker y Docker Compose
-- (Opcional) Node.js 18+ para desarrollo local
+- Docker and Docker Compose
+- (Optional) Node.js 18+ for local development
 
-### Configuración
+### Setup
 
-1. Clona el repositorio:
+1. Clone the repository:
 ```bash
-git clone https://github.com/abraham-diaz/GLaDOs.git
-cd GLaDOs
+git clone https://github.com/abraham-diaz/GLaDos.git
+cd GLaDos
 ```
 
-2. Crea el archivo de variables de entorno:
+2. Create the environment variables file:
 ```bash
 cp .env.example .env
 ```
 
-3. Configura las variables en `.env`:
-```bash
-# Base de datos
+3. Configure the variables in `.env`:
+```env
+# Database
 POSTGRES_USER=glados
-POSTGRES_PASSWORD=tu-password-seguro
+POSTGRES_PASSWORD=your-secure-password
 POSTGRES_DB=glados
 
-# Autenticación
+# Authentication
 AUTH_USERNAME=admin
-AUTH_PASSWORD=tu-password-seguro
-JWT_SECRET=tu-clave-secreta-aleatoria
+AUTH_PASSWORD=your-secure-password
+JWT_SECRET=your-random-secret-key
 JWT_EXPIRES_IN=90d
 ```
 
-4. Levanta los servicios:
+4. Start the services:
 ```bash
 docker-compose up --build
 ```
 
-5. Accede a la aplicación en `http://localhost:3000`
+5. Access the application at `http://localhost:3000`
 
-### Desarrollo local
+### Local Development
 
 ```bash
-# Backend (requiere DB y AI service corriendo)
+# Backend (requires DB and AI service running)
 cd backend && npm install && npm run dev
 
 # AI Service
@@ -94,55 +104,55 @@ cd ai-service && pip install -r requirements.txt && uvicorn main:app --reload
 
 ## API Endpoints
 
-| Ruta | Método | Auth | Descripción |
-|------|--------|------|-------------|
+| Route | Method | Auth | Description |
+|-------|--------|------|-------------|
 | `/health` | GET | No | Health check (DB + AI service) |
-| `/api/auth/login` | POST | No | Login, devuelve JWT |
-| `/api/auth/verify` | GET | Sí | Verificar token válido |
-| `/api/entries` | POST | Sí | Crear nueva entrada |
-| `/api/concepts` | GET | Sí | Listar conceptos |
-| `/api/concepts/search` | POST | Sí | Búsqueda semántica |
+| `/api/auth/login` | POST | No | Login, returns JWT |
+| `/api/auth/verify` | GET | Yes | Verify valid token |
+| `/api/entries` | POST | Yes | Create new entry |
+| `/api/concepts` | GET | Yes | List concepts |
+| `/api/concepts/search` | POST | Yes | Semantic concept search |
 
-## Modelo de Datos
+## Data Model
 
 ```sql
-entries          -- Texto del usuario + embedding de frase
-concepts         -- Conocimiento extraído con embeddings duales, peso y estado
-entry_concept    -- Relación N:N con score de similitud
-signals          -- Metadatos (emoción, repetición, intención, claridad)
-weekly_summaries -- Resúmenes semanales agregados
+entries          -- User text + sentence embedding
+concepts         -- Extracted knowledge with dual embeddings, weight, and state
+entry_concept    -- N:N relationship with similarity score
+signals          -- Metadata (emotion, repetition, intention, clarity)
+weekly_summaries -- Aggregated weekly summaries
 ```
 
-### Estados de un concepto
+### Concept States
 
-| Estado | Descripción |
-|--------|-------------|
-| `cruda` | Concepto recién creado |
-| `recurrente` | Peso >= 2, aparece frecuentemente |
-| `importante` | Marcado manualmente como importante |
-| `dormida` | Sin actividad reciente |
-| `resuelta` | Concepto cerrado/completado |
+| State | Description |
+|-------|-------------|
+| `raw` | Newly created concept |
+| `recurring` | Weight >= 2, appears frequently |
+| `important` | Manually marked as important |
+| `dormant` | No recent activity |
+| `resolved` | Closed/completed concept |
 
-### Tipos de concepto
+### Concept Types
 
-`idea` · `error` · `aprendizaje` · `decision`
+`idea` · `error` · `learning` · `decision`
 
-## Estructura del Proyecto
+## Project Structure
 
 ```
-GLaDOs/
+GLaDos/
 ├── backend/                 # Node.js + Express + TypeScript
 │   ├── src/
-│   │   ├── config/         # Variables de entorno
-│   │   ├── services/       # Lógica de negocio
-│   │   ├── routes/         # Endpoints REST
-│   │   ├── queries/        # SQL parametrizado
-│   │   └── types/          # Interfaces TypeScript
+│   │   ├── config/         # Environment variables
+│   │   ├── services/       # Business logic
+│   │   ├── routes/         # REST endpoints
+│   │   ├── queries/        # Parameterized SQL
+│   │   └── types/          # TypeScript interfaces
 │   └── public/             # PWA frontend
 ├── ai-service/             # Python + FastAPI
 │   └── main.py             # Embeddings + KeyBERT
 ├── db/
-│   └── init.sql            # Schema con pgvector
+│   └── init.sql            # Schema with pgvector
 └── docker-compose.yml
 ```
 
