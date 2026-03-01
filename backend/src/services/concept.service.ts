@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { postgresService } from './postgres.service';
 import { aiService } from './ai.service';
-import { SimilarConcept, ConceptAssociationResult, ConceptState, ConceptDetail, ConceptDetailEntry } from '../types/concept.types';
+import { SimilarConcept, ConceptAssociationResult, ConceptState, ConceptType, ConceptDetail, ConceptDetailEntry } from '../types/concept.types';
 import { CONCEPT } from '../constants';
 import { conceptQueries } from '../queries/concept.queries';
 
@@ -118,11 +118,11 @@ class ConceptService {
       await this.reinforce(match.id);
 
       // Clasificar la entry para mostrar su tipo real
-      let entryType: string | undefined;
+      let entryType: ConceptType | undefined;
       let entryConfidence: number | undefined;
       try {
         const classifyResult = await aiService.classifyType(text);
-        entryType = classifyResult.concept_type;
+        entryType = classifyResult.concept_type as ConceptType;
         entryConfidence = classifyResult.confidence;
         console.log(`[Concept] Entry classified as: ${entryType} (confidence: ${entryConfidence})`);
       } catch (error) {
