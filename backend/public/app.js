@@ -150,12 +150,13 @@
       if (!res.ok) {
         responseContent.textContent = 'Error: ' + (data.error || res.statusText);
       } else {
-        var concept = data.concept;
+        var concept = data.context || data.concept;
         if (concept) {
+          var displayType = concept.entryType || concept.concept_type || concept.type || '';
           responseContent.innerHTML =
             '<strong>' + escapeHtml(concept.summary || concept.title || 'Concepto procesado') + '</strong>' +
             ' <span class="badge badge-state" data-state="' + escapeHtml(concept.state) + '">' + escapeHtml(concept.state) + '</span>' +
-            ' <span class="badge badge-type">' + escapeHtml(concept.concept_type || concept.type || '') + '</span>' +
+            ' <span class="badge badge-type">' + escapeHtml(displayType) + '</span>' +
             '<br><span style="color:#555">Peso: ' + (concept.weight || 1) + '</span>';
         } else {
           responseContent.textContent = 'Entrada registrada.';

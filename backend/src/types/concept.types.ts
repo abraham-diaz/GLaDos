@@ -29,6 +29,8 @@ export interface ConceptContext {
   summary: string | null;
   similarity: number;
   weight: number;
+  entryType?: ConceptType;
+  entryConfidence?: number;
 }
 
 export interface ConceptAssociationResult {
