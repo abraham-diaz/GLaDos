@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { config } from './config';
+import { postgresService } from './services/postgres.service';
 import { authMiddleware } from './middleware/auth.middleware';
 import healthRoutes from './routes/health.routes';
 import authRoutes from './routes/auth.routes';
@@ -22,6 +23,7 @@ app.use('/api/entries', authMiddleware, entryRoutes);
 app.use('/api/analyze', authMiddleware, analyzeRoutes);
 app.use('/api/concepts', authMiddleware, conceptRoutes);
 
-app.listen(config.port, () => {
+app.listen(config.port, async () => {
   console.log(`Backend running on port ${config.port}`);
+  await postgresService.runMigrations();
 });

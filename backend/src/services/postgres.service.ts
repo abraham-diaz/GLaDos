@@ -28,6 +28,17 @@ class PostgresService implements HealthChecker {
     }
   }
 
+  async runMigrations(): Promise<void> {
+    try {
+      await this.pool.query(`
+        ALTER TABLE entry_concept ADD COLUMN IF NOT EXISTS entry_type concept_type
+      `);
+      console.log('[Postgres] Migrations OK');
+    } catch (error) {
+      console.error('[Postgres] Migration error:', error);
+    }
+  }
+
   getPool(): Pool {
     return this.pool;
   }

@@ -92,12 +92,12 @@ class ConceptService {
   /**
    * Asocia una entry a un concepto
    */
-  async linkEntry(entryId: string, conceptId: string, similarity: number): Promise<void> {
+  async linkEntry(entryId: string, conceptId: string, similarity: number, entryType?: string): Promise<void> {
     const pool = postgresService.getPool();
 
-    await pool.query(conceptQueries.linkEntry, [entryId, conceptId, similarity]);
+    await pool.query(conceptQueries.linkEntry, [entryId, conceptId, similarity, entryType || null]);
 
-    console.log(`[Concept] LINKED entry ${entryId} -> concept ${conceptId} (similarity: ${similarity.toFixed(3)})`);
+    console.log(`[Concept] LINKED entry ${entryId} -> concept ${conceptId} (similarity: ${similarity.toFixed(3)}, type: ${entryType || 'n/a'})`);
   }
 
   /**
@@ -114,9 +114,6 @@ class ConceptService {
     if (similar.length > 0) {
       const match = similar[0];
 
-      await this.linkEntry(entryId, match.id, match.similarity);
-      await this.reinforce(match.id);
-
       // Clasificar la entry para mostrar su tipo real
       let entryType: ConceptType | undefined;
       let entryConfidence: number | undefined;
@@ -128,6 +125,9 @@ class ConceptService {
       } catch (error) {
         console.error('[Concept] Error classifying entry:', error);
       }
+
+      await this.linkEntry(entryId, match.id, match.similarity, entryType);
+      await this.reinforce(match.id);
 
       console.log(`[Concept] Entry matched existing concept: "${match.title}" (topic similarity: ${match.similarity.toFixed(3)}, weight: ${match.weight}, state: ${match.state})`);
 

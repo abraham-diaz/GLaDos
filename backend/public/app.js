@@ -340,10 +340,12 @@
         entriesEl.innerHTML = '<div class="empty-state">No hay entries vinculadas.</div>';
       } else {
         entriesEl.innerHTML = entries.map(function(e) {
+          var typeBadge = e.entry_type ? ' <span class="badge badge-type">' + escapeHtml(e.entry_type) + '</span>' : '';
           return '<div class="modal-entry">' +
             '<div class="modal-entry-text">' + escapeHtml(e.raw_text) + '</div>' +
             '<div class="modal-entry-meta">' +
               '<span>' + formatDate(e.created_at) + '</span>' +
+              typeBadge +
               '<span>Similitud: ' + (e.similarity * 100).toFixed(1) + '%</span>' +
             '</div>' +
           '</div>';
