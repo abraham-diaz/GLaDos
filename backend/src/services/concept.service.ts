@@ -117,9 +117,20 @@ class ConceptService {
       await this.linkEntry(entryId, match.id, match.similarity);
       await this.reinforce(match.id);
 
+      // Clasificar la entry para mostrar su tipo real
+      let entryType: string | undefined;
+      let entryConfidence: number | undefined;
+      try {
+        const classifyResult = await aiService.classifyType(text);
+        entryType = classifyResult.concept_type;
+        entryConfidence = classifyResult.confidence;
+        console.log(`[Concept] Entry classified as: ${entryType} (confidence: ${entryConfidence})`);
+      } catch (error) {
+        console.error('[Concept] Error classifying entry:', error);
+      }
+
       console.log(`[Concept] Entry matched existing concept: "${match.title}" (topic similarity: ${match.similarity.toFixed(3)}, weight: ${match.weight}, state: ${match.state})`);
 
-      // MODO INSTRUMENTACIÓN: siempre devolver contexto para calibrar
       return {
         action: 'associated',
         conceptId: match.id,
@@ -132,6 +143,8 @@ class ConceptService {
           summary: match.summary,
           similarity: match.similarity,
           weight: match.weight + 1,
+          entryType,
+          entryConfidence,
         },
       };
     } else {

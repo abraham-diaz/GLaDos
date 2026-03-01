@@ -15,6 +15,7 @@ A system that captures free-form text (ideas, errors, learnings, decisions), gen
 ## Features
 
 - **Dual embeddings** - MiniLM (384-dim) for sentence similarity + MPNet (768-dim) for semantic similarity
+- **Zero-shot classification** - Concept type detection using mDeBERTa (multilingual NLI) instead of fragile regex patterns
 - **Evolving concepts** - Concepts automatically change state: `raw → recurring → important → dormant → resolved`
 - **Semantic search** - Find related concepts using cosine similarity with pgvector
 - **Auto-extraction** - Keywords and summaries generated with KeyBERT
@@ -25,7 +26,7 @@ A system that captures free-form text (ideas, errors, learnings, decisions), gen
 | Layer | Technologies |
 |-------|-------------|
 | **Backend** | Express 4, TypeScript 5, pg 8 |
-| **AI Service** | FastAPI, Sentence Transformers, KeyBERT |
+| **AI Service** | FastAPI, Sentence Transformers, KeyBERT, Transformers (mDeBERTa) |
 | **Database** | PostgreSQL 16 + pgvector (IVFFlat) |
 | **Infrastructure** | Docker Compose |
 
@@ -38,10 +39,11 @@ A system that captures free-form text (ideas, errors, learnings, decisions), gen
 └─────────────┘     └──────┬──────┘     └─────────────┘
                            │
                            ▼
-                    ┌─────────────┐
-                    │   FastAPI   │
-                    │ (Embeddings)│
-                    └─────────────┘
+                    ┌──────────────┐
+                    │   FastAPI    │
+                    │  Embeddings  │
+                    │  + mDeBERTa  │
+                    └──────────────┘
 ```
 
 **Main flow:**
@@ -135,7 +137,14 @@ weekly_summaries -- Aggregated weekly summaries
 
 ### Concept Types
 
-`idea` · `error` · `learning` · `decision`
+Classified automatically using zero-shot NLI (`mDeBERTa-v3-base-mnli-xnli`):
+
+| Type | Description |
+|------|-------------|
+| `idea` | Proposals, suggestions, things to explore |
+| `error` | Bugs, failures, technical problems |
+| `aprendizaje` | New concepts learned, personal discoveries |
+| `decision` | Firm choices about tools, approaches, or strategies |
 
 ## Project Structure
 
@@ -150,7 +159,7 @@ GLaDos/
 │   │   └── types/          # TypeScript interfaces
 │   └── public/             # PWA frontend
 ├── ai-service/             # Python + FastAPI
-│   └── main.py             # Embeddings + KeyBERT
+│   └── main.py             # Embeddings + KeyBERT + zero-shot classification
 ├── db/
 │   └── init.sql            # Schema with pgvector
 └── docker-compose.yml
