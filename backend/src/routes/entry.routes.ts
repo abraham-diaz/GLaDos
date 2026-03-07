@@ -29,4 +29,32 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
+router.put('/:id/concept', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { action, conceptId } = req.body;
+
+  try {
+    let result;
+
+    if (action === 'unlink') {
+      result = await entryService.unlinkFromConcept(id);
+    } else if (action === 'create') {
+      result = await entryService.createConceptFromEntry(id);
+    } else if (conceptId) {
+      result = await entryService.reassignToConcept(id, conceptId);
+    } else {
+      res.status(400).json({ error: 'Provide "action" (unlink|create) or "conceptId"' });
+      return;
+    }
+
+    res.json(result);
+  } catch (error) {
+    const status = error instanceof Error && error.message === 'Entry not found' ? 404 : 500;
+    res.status(status).json({
+      error: 'Failed to reassign entry',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 export default router;

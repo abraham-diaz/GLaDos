@@ -46,6 +46,7 @@ export interface ConceptDetailEntry {
   raw_text: string;
   created_at: Date;
   similarity: number;
+  entry_type: ConceptType | null;
 }
 
 export interface ConceptDetail {

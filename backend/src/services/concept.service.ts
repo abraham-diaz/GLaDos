@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { postgresService } from './postgres.service';
 import { aiService } from './ai.service';
-import { SimilarConcept, ConceptAssociationResult, ConceptState, ConceptDetail, ConceptDetailEntry } from '../types/concept.types';
+import { SimilarConcept, ConceptAssociationResult, ConceptState, ConceptType, ConceptDetail, ConceptDetailEntry } from '../types/concept.types';
 import { CONCEPT } from '../constants';
 import { conceptQueries } from '../queries/concept.queries';
 
@@ -92,12 +92,12 @@ class ConceptService {
   /**
    * Asocia una entry a un concepto
    */
-  async linkEntry(entryId: string, conceptId: string, similarity: number): Promise<void> {
+  async linkEntry(entryId: string, conceptId: string, similarity: number, entryType?: string): Promise<void> {
     const pool = postgresService.getPool();
 
-    await pool.query(conceptQueries.linkEntry, [entryId, conceptId, similarity]);
+    await pool.query(conceptQueries.linkEntry, [entryId, conceptId, similarity, entryType || null]);
 
-    console.log(`[Concept] LINKED entry ${entryId} -> concept ${conceptId} (similarity: ${similarity.toFixed(3)})`);
+    console.log(`[Concept] LINKED entry ${entryId} -> concept ${conceptId} (similarity: ${similarity.toFixed(3)}, type: ${entryType || 'n/a'})`);
   }
 
   /**
@@ -114,20 +114,20 @@ class ConceptService {
     if (similar.length > 0) {
       const match = similar[0];
 
-      await this.linkEntry(entryId, match.id, match.similarity);
-      await this.reinforce(match.id);
-
       // Clasificar la entry para mostrar su tipo real
-      let entryType: string | undefined;
+      let entryType: ConceptType | undefined;
       let entryConfidence: number | undefined;
       try {
         const classifyResult = await aiService.classifyType(text);
-        entryType = classifyResult.concept_type;
+        entryType = classifyResult.concept_type as ConceptType;
         entryConfidence = classifyResult.confidence;
         console.log(`[Concept] Entry classified as: ${entryType} (confidence: ${entryConfidence})`);
       } catch (error) {
         console.error('[Concept] Error classifying entry:', error);
       }
+
+      await this.linkEntry(entryId, match.id, match.similarity, entryType);
+      await this.reinforce(match.id);
 
       console.log(`[Concept] Entry matched existing concept: "${match.title}" (topic similarity: ${match.similarity.toFixed(3)}, weight: ${match.weight}, state: ${match.state})`);
 
@@ -220,6 +220,31 @@ class ConceptService {
     const result = await pool.query(conceptQueries.list);
     return result.rows;
   }
+  /**
+   * Decrementa el peso de un concepto (cuando se desasocia una entry)
+   */
+  async decrementWeight(conceptId: string): Promise<void> {
+    const pool = postgresService.getPool();
+    const result = await pool.query(conceptQueries.decrementWeight, [conceptId]);
+    if (result.rows.length > 0) {
+      const { weight, state } = result.rows[0];
+      console.log(`[Concept] DECREMENTED weight: ${conceptId} (weight: ${weight}, state: ${state})`);
+    }
+  }
+
+  /**
+   * Elimina un concepto por ID (CASCADE borra entry_concept)
+   */
+  async delete(id: string): Promise<boolean> {
+    const pool = postgresService.getPool();
+    const result = await pool.query(conceptQueries.delete, [id]);
+    const deleted = result.rowCount > 0;
+    if (deleted) {
+      console.log(`[Concept] DELETED concept: ${id}`);
+    }
+    return deleted;
+  }
+
   /**
    * Reclasifica todos los conceptos existentes según el texto de su entry más relevante
    */

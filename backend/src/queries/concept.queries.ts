@@ -27,8 +27,8 @@ export const conceptQueries = {
   `,
 
   linkEntry: `
-    INSERT INTO entry_concept (entry_id, concept_id, similarity)
-    VALUES ($1, $2, $3)
+    INSERT INTO entry_concept (entry_id, concept_id, similarity, entry_type)
+    VALUES ($1, $2, $3, $4)
     ON CONFLICT (entry_id, concept_id) DO NOTHING
   `,
 
@@ -67,11 +67,11 @@ export const conceptQueries = {
   `,
 
   getLinkedEntries: `
-    SELECT e.id, e.raw_text, e.created_at, ec.similarity
+    SELECT e.id, e.raw_text, e.created_at, ec.similarity, ec.entry_type
     FROM entry_concept ec
     JOIN entries e ON e.id = ec.entry_id
     WHERE ec.concept_id = $1
-    ORDER BY ec.similarity DESC
+    ORDER BY e.created_at DESC
   `,
   getAllWithTopEntry: `
     SELECT c.id, e.raw_text
@@ -85,5 +85,16 @@ export const conceptQueries = {
 
   updateType: `
     UPDATE concepts SET type = $2 WHERE id = $1
+  `,
+
+  decrementWeight: `
+    UPDATE concepts
+    SET weight = GREATEST(weight - 1, 0)
+    WHERE id = $1
+    RETURNING weight, state
+  `,
+
+  delete: `
+    DELETE FROM concepts WHERE id = $1 RETURNING id
   `,
 } as const;

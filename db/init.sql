@@ -52,6 +52,7 @@ CREATE TABLE entry_concept (
   entry_id UUID REFERENCES entries(id) ON DELETE CASCADE,
   concept_id UUID REFERENCES concepts(id) ON DELETE CASCADE,
   similarity FLOAT NOT NULL,
+  entry_type concept_type,
   PRIMARY KEY (entry_id, concept_id)
 );
 
