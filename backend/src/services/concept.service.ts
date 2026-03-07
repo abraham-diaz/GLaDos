@@ -221,6 +221,31 @@ class ConceptService {
     return result.rows;
   }
   /**
+   * Decrementa el peso de un concepto (cuando se desasocia una entry)
+   */
+  async decrementWeight(conceptId: string): Promise<void> {
+    const pool = postgresService.getPool();
+    const result = await pool.query(conceptQueries.decrementWeight, [conceptId]);
+    if (result.rows.length > 0) {
+      const { weight, state } = result.rows[0];
+      console.log(`[Concept] DECREMENTED weight: ${conceptId} (weight: ${weight}, state: ${state})`);
+    }
+  }
+
+  /**
+   * Elimina un concepto por ID (CASCADE borra entry_concept)
+   */
+  async delete(id: string): Promise<boolean> {
+    const pool = postgresService.getPool();
+    const result = await pool.query(conceptQueries.delete, [id]);
+    const deleted = result.rowCount > 0;
+    if (deleted) {
+      console.log(`[Concept] DELETED concept: ${id}`);
+    }
+    return deleted;
+  }
+
+  /**
    * Reclasifica todos los conceptos existentes según el texto de su entry más relevante
    */
   async reclassifyAll(): Promise<{ total: number; updated: number; results: { id: string; from: string; to: string }[] }> {

@@ -30,6 +30,22 @@ router.post('/reclassify', async (_req: Request, res: Response) => {
   }
 });
 
+router.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    const deleted = await conceptService.delete(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ error: 'Concept not found' });
+      return;
+    }
+    res.json({ message: 'Concept deleted', id: req.params.id });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to delete concept',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const detail = await conceptService.getDetail(req.params.id);
