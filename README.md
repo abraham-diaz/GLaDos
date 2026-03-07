@@ -19,6 +19,7 @@ A system that captures free-form text (ideas, errors, learnings, decisions), gen
 - **Evolving concepts** - Concepts automatically change state: `raw → recurring → important → dormant → resolved`
 - **Semantic search** - Find related concepts using cosine similarity with pgvector
 - **Auto-extraction** - Keywords and summaries generated with KeyBERT
+- **Manual corrections** - Reassign, unlink, or create new concepts from entries when the model gets it wrong
 - **PWA** - Web interface with offline support and JWT authentication
 
 ## Tech Stack
@@ -112,8 +113,20 @@ cd ai-service && pip install -r requirements.txt && uvicorn main:app --reload
 | `/api/auth/login` | POST | No | Login, returns JWT |
 | `/api/auth/verify` | GET | Yes | Verify valid token |
 | `/api/entries` | POST | Yes | Create new entry |
+| `/api/entries/:id/concept` | PUT | Yes | Reassign/create/unlink entry from concept |
 | `/api/concepts` | GET | Yes | List concepts |
+| `/api/concepts/:id` | GET | Yes | Concept detail with linked entries |
+| `/api/concepts/:id` | DELETE | Yes | Delete concept |
 | `/api/concepts/search` | POST | Yes | Semantic concept search |
+| `/api/concepts/reclassify` | POST | Yes | Reclassify all concepts |
+
+### Manual entry management (`PUT /api/entries/:id/concept`)
+
+Allows correcting incorrect model associations:
+
+- `{ "conceptId": "uuid" }` → Reassign entry to another existing concept
+- `{ "action": "create" }` → Create a new concept from the entry
+- `{ "action": "unlink" }` → Unlink entry (leave it without a concept)
 
 ## Data Model
 
