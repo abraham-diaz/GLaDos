@@ -335,6 +335,9 @@
       // Render weight chart
       renderWeightChart(chartEl, entries, concept.created_at);
 
+      // Store current concept id for reassign actions
+      modal.dataset.conceptId = conceptId;
+
       // Render entries
       if (entries.length === 0) {
         entriesEl.innerHTML = '<div class="empty-state">No hay entries vinculadas.</div>';
@@ -348,6 +351,11 @@
               typeBadge +
               '<span>Similitud: ' + (e.similarity * 100).toFixed(1) + '%</span>' +
             '</div>' +
+            '<div class="modal-entry-actions">' +
+              '<button class="btn-action btn-reassign" onclick="showReassignPicker(\'' + e.id + '\')">Reasignar</button>' +
+              '<button class="btn-action btn-create" onclick="createConceptFromEntry(\'' + e.id + '\')">Nuevo concepto</button>' +
+              '<button class="btn-action btn-unlink" onclick="unlinkEntry(\'' + e.id + '\')">Desasociar</button>' +
+            '</div>' +
           '</div>';
         }).join('');
       }
@@ -355,6 +363,114 @@
       if (err.message !== 'Session expired') {
         titleEl.textContent = 'Error de conexi\u00f3n';
         entriesEl.innerHTML = '';
+      }
+    }
+  }
+
+  async function unlinkEntry(entryId) {
+    if (!confirm('Desasociar esta entry del concepto?')) return;
+
+    try {
+      var res = await authFetch('/api/entries/' + entryId + '/concept', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unlink' })
+      });
+
+      if (res.ok) {
+        var conceptId = document.getElementById('conceptModal').dataset.conceptId;
+        openConceptModal(conceptId);
+        loadConcepts();
+      }
+    } catch (err) {
+      if (err.message !== 'Session expired') {
+        alert('Error al desasociar: ' + err.message);
+      }
+    }
+  }
+
+  async function createConceptFromEntry(entryId) {
+    if (!confirm('Crear un nuevo concepto a partir de esta entry?')) return;
+
+    try {
+      var res = await authFetch('/api/entries/' + entryId + '/concept', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create' })
+      });
+
+      if (res.ok) {
+        var conceptId = document.getElementById('conceptModal').dataset.conceptId;
+        openConceptModal(conceptId);
+        loadConcepts();
+      }
+    } catch (err) {
+      if (err.message !== 'Session expired') {
+        alert('Error al crear concepto: ' + err.message);
+      }
+    }
+  }
+
+  async function showReassignPicker(entryId) {
+    // Load all concepts for the picker
+    try {
+      var res = await authFetch('/api/concepts');
+      var data = await res.json();
+      var concepts = Array.isArray(data) ? data : data.concepts || [];
+      var currentConceptId = document.getElementById('conceptModal').dataset.conceptId;
+
+      // Filter out current concept
+      concepts = concepts.filter(function(c) { return c.id !== currentConceptId; });
+
+      if (concepts.length === 0) {
+        alert('No hay otros conceptos disponibles.');
+        return;
+      }
+
+      // Build picker HTML
+      var pickerHtml = '<div class="reassign-picker">' +
+        '<div class="reassign-picker-title">Selecciona el concepto destino:</div>' +
+        '<div class="reassign-picker-list">' +
+        concepts.map(function(c) {
+          return '<div class="reassign-picker-item" onclick="reassignEntry(\'' + entryId + '\', \'' + c.id + '\')">' +
+            '<span class="concept-title">' + escapeHtml(c.summary || c.title) + '</span>' +
+            ' <span class="badge badge-type">' + escapeHtml(c.type || '') + '</span>' +
+          '</div>';
+        }).join('') +
+        '</div>' +
+        '<button class="btn-action btn-cancel" onclick="this.parentElement.remove()">Cancelar</button>' +
+        '</div>';
+
+      // Insert picker after the entry
+      var entryEl = document.querySelector('[onclick*="showReassignPicker(\\\'' + entryId + '\\\')"]');
+      if (entryEl) {
+        var existing = entryEl.closest('.modal-entry').querySelector('.reassign-picker');
+        if (existing) { existing.remove(); return; }
+        entryEl.closest('.modal-entry').insertAdjacentHTML('beforeend', pickerHtml);
+      }
+    } catch (err) {
+      if (err.message !== 'Session expired') {
+        alert('Error al cargar conceptos: ' + err.message);
+      }
+    }
+  }
+
+  async function reassignEntry(entryId, newConceptId) {
+    try {
+      var res = await authFetch('/api/entries/' + entryId + '/concept', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conceptId: newConceptId })
+      });
+
+      if (res.ok) {
+        var conceptId = document.getElementById('conceptModal').dataset.conceptId;
+        openConceptModal(conceptId);
+        loadConcepts();
+      }
+    } catch (err) {
+      if (err.message !== 'Session expired') {
+        alert('Error al reasignar: ' + err.message);
       }
     }
   }
@@ -507,6 +623,10 @@
   window.openConceptModal = openConceptModal;
   window.closeConceptModal = closeConceptModal;
   window.handleModalOverlayClick = handleModalOverlayClick;
+  window.unlinkEntry = unlinkEntry;
+  window.createConceptFromEntry = createConceptFromEntry;
+  window.showReassignPicker = showReassignPicker;
+  window.reassignEntry = reassignEntry;
 
   // Run on DOM ready
   if (document.readyState === 'loading') {
