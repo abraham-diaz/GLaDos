@@ -12,22 +12,22 @@ model_topic: SentenceTransformer | None = None   # MPNet: similitud semántica
 kw_model: KeyBERT | None = None                  # KeyBERT: extracción de keywords
 classifier = None                                 # Zero-shot classification (mDeBERTa)
 
-# Labels descriptivas en español para zero-shot classification
+# Labels para zero-shot classification
 CANDIDATE_LABELS = [
-    "se me ocurre una idea o propuesta que podríamos probar",
-    "un proceso o servicio no funcionaba bien, se encontró un problema o bug",
-    "el autor aprendió un concepto nuevo o descubrió algo que no sabía",
-    "hay que usar esta herramienta o enfoque, es la mejor opción, está decidido",
+    "una idea o propuesta para mejorar o crear algo",
+    "un error, bug o problema que ocurrio",
+    "algo que se aprendio o se descubrio",
+    "se eligio una opcion entre varias alternativas",
 ]
 
 LABEL_TO_TYPE = {
-    "se me ocurre una idea o propuesta que podríamos probar": "idea",
-    "un proceso o servicio no funcionaba bien, se encontró un problema o bug": "error",
-    "el autor aprendió un concepto nuevo o descubrió algo que no sabía": "aprendizaje",
-    "hay que usar esta herramienta o enfoque, es la mejor opción, está decidido": "decision",
+    "una idea o propuesta para mejorar o crear algo": "idea",
+    "un error, bug o problema que ocurrio": "error",
+    "algo que se aprendio o se descubrio": "aprendizaje",
+    "se eligio una opcion entre varias alternativas": "decision",
 }
 
-HYPOTHESIS_TEMPLATE = "{}"
+HYPOTHESIS_TEMPLATE = "Este texto trata sobre {}."
 
 
 @asynccontextmanager
