@@ -86,4 +86,15 @@ export const conceptQueries = {
   updateType: `
     UPDATE concepts SET type = $2 WHERE id = $1
   `,
+
+  decrementWeight: `
+    UPDATE concepts
+    SET weight = GREATEST(weight - 1, 0)
+    WHERE id = $1
+    RETURNING weight, state
+  `,
+
+  delete: `
+    DELETE FROM concepts WHERE id = $1 RETURNING id
+  `,
 } as const;
