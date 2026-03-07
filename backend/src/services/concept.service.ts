@@ -238,7 +238,7 @@ class ConceptService {
   async delete(id: string): Promise<boolean> {
     const pool = postgresService.getPool();
     const result = await pool.query(conceptQueries.delete, [id]);
-    const deleted = result.rowCount > 0;
+    const deleted = (result.rowCount ?? 0) > 0;
     if (deleted) {
       console.log(`[Concept] DELETED concept: ${id}`);
     }
