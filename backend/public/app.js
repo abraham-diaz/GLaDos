@@ -559,6 +559,192 @@
     return day + ' ' + month + ' ' + year + ' ' + hours + ':' + mins;
   }
 
+  // ==================== Chat ====================
+
+  var chatHistory = [];
+  var isChatOpen = false;
+
+  function toggleChat() {
+    var panel = document.getElementById('chatPanel');
+    var fab = document.getElementById('chatFab');
+    isChatOpen = !isChatOpen;
+
+    if (isChatOpen) {
+      panel.classList.remove('hidden');
+      fab.classList.add('hidden');
+      document.getElementById('chatInput').focus();
+    } else {
+      panel.classList.add('hidden');
+      fab.classList.remove('hidden');
+    }
+  }
+
+  async function sendChatMessage() {
+    var input = document.getElementById('chatInput');
+    var sendBtn = document.getElementById('chatSendBtn');
+    var message = input.value.trim();
+    if (!message) return;
+
+    // Add user message to UI and history
+    chatHistory.push({ role: 'user', content: message });
+    appendChatBubble('user', message);
+    input.value = '';
+    sendBtn.disabled = true;
+
+    // Show typing indicator
+    var typingEl = appendChatBubble('assistant', 'Pensando...', true);
+
+    try {
+      var res = await authFetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: message,
+          history: chatHistory.slice(0, -1) // History without current message
+        })
+      });
+
+      var data = await res.json();
+      typingEl.remove();
+
+      if (!res.ok) {
+        appendChatBubble('assistant', 'Error: ' + (data.error || data.details || 'Error desconocido'));
+        return;
+      }
+
+      chatHistory.push({ role: 'assistant', content: data.reply });
+      var bubble = appendChatBubble('assistant', data.reply);
+
+      // Show sources
+      if (data.sources && data.sources.length > 0) {
+        appendChatSources(bubble, data.sources);
+      }
+    } catch (err) {
+      typingEl.remove();
+      if (err.message !== 'Session expired') {
+        appendChatBubble('assistant', 'Error de conexi\u00f3n: ' + err.message);
+      }
+    } finally {
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  }
+
+  function appendChatBubble(role, text, isTyping) {
+    var container = document.getElementById('chatMessages');
+    var bubble = document.createElement('div');
+    bubble.className = 'chat-bubble chat-bubble-' + role;
+    if (isTyping) bubble.classList.add('chat-bubble-typing');
+
+    var textEl = document.createElement('div');
+    textEl.textContent = text;
+    bubble.appendChild(textEl);
+
+    // Add save button on assistant messages (not typing indicators)
+    if (role === 'assistant' && !isTyping) {
+      var saveBtn = document.createElement('button');
+      saveBtn.className = 'btn-chat-save';
+      saveBtn.textContent = 'Guardar como entry';
+      saveBtn.onclick = function() { showSaveEditor(bubble, text, saveBtn); };
+      bubble.appendChild(saveBtn);
+    }
+
+    container.appendChild(bubble);
+    container.scrollTop = container.scrollHeight;
+    return bubble;
+  }
+
+  function showSaveEditor(bubble, text, saveBtn) {
+    // Build modal overlay
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.onclick = function(e) {
+      if (e.target === overlay) overlay.remove();
+    };
+
+    var modal = document.createElement('div');
+    modal.className = 'modal-content chat-save-modal';
+
+    var header = document.createElement('div');
+    header.className = 'modal-header';
+    header.innerHTML = '<h2>Guardar como entry</h2>';
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'modal-close';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.onclick = function() { overlay.remove(); };
+    header.appendChild(closeBtn);
+
+    var textarea = document.createElement('textarea');
+    textarea.className = 'chat-save-modal-textarea';
+    textarea.value = text;
+
+    var actions = document.createElement('div');
+    actions.className = 'chat-save-modal-actions';
+
+    var confirmBtn = document.createElement('button');
+    confirmBtn.textContent = 'Guardar';
+    confirmBtn.onclick = async function() {
+      var finalText = textarea.value.trim();
+      if (!finalText) return;
+
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+      confirmBtn.textContent = 'Guardando...';
+
+      try {
+        var res = await authFetch('/api/entries', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw_text: finalText })
+        });
+
+        if (res.ok) {
+          overlay.remove();
+          saveBtn.textContent = 'Guardado';
+          saveBtn.classList.add('btn-chat-saved');
+          loadConcepts();
+        } else {
+          confirmBtn.textContent = 'Error - Reintentar';
+          confirmBtn.disabled = false;
+          cancelBtn.disabled = false;
+        }
+      } catch (err) {
+        if (err.message !== 'Session expired') {
+          confirmBtn.textContent = 'Error - Reintentar';
+          confirmBtn.disabled = false;
+          cancelBtn.disabled = false;
+        }
+      }
+    };
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn-action btn-cancel';
+    cancelBtn.textContent = 'Cancelar';
+    cancelBtn.onclick = function() { overlay.remove(); };
+
+    actions.appendChild(confirmBtn);
+    actions.appendChild(cancelBtn);
+    modal.appendChild(header);
+    modal.appendChild(textarea);
+    modal.appendChild(actions);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    textarea.focus();
+  }
+
+  function appendChatSources(bubble, sources) {
+    var sourcesDiv = document.createElement('div');
+    sourcesDiv.className = 'chat-sources';
+    sources.forEach(function(s) {
+      var badge = document.createElement('span');
+      badge.className = 'chat-source-badge';
+      badge.textContent = s.title + ' (' + (s.similarity * 100).toFixed(0) + '%)';
+      badge.onclick = function() { openConceptModal(s.id); };
+      sourcesDiv.appendChild(badge);
+    });
+    bubble.appendChild(sourcesDiv);
+  }
+
   // ==================== Utils ====================
 
   function escapeHtml(str) {
@@ -598,10 +784,22 @@
       }
     });
 
-    // Escape to close modal
+    // Chat input: Enter to send, Shift+Enter for newline
+    document.getElementById('chatInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage();
+      }
+    });
+
+    // Escape to close modal or chat
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
-        closeConceptModal();
+        if (isChatOpen) {
+          toggleChat();
+        } else {
+          closeConceptModal();
+        }
       }
     });
 
@@ -627,6 +825,8 @@
   window.createConceptFromEntry = createConceptFromEntry;
   window.showReassignPicker = showReassignPicker;
   window.reassignEntry = reassignEntry;
+  window.toggleChat = toggleChat;
+  window.sendChatMessage = sendChatMessage;
 
   // Run on DOM ready
   if (document.readyState === 'loading') {

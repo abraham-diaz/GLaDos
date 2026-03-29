@@ -20,6 +20,8 @@ A system that captures free-form text (ideas, errors, learnings, decisions), gen
 - **Semantic search** - Find related concepts using cosine similarity with pgvector
 - **Auto-extraction** - Keywords and summaries generated with KeyBERT
 - **Manual corrections** - Reassign, unlink, or create new concepts from entries when the model gets it wrong
+- **RAG Chat** - Conversational AI (Groq/Llama 3.3 70B) that answers questions using your stored knowledge as context
+- **Save chat replies** - Edit and save assistant messages as new entries to capture insights
 - **PWA** - Web interface with offline support and JWT authentication
 
 ## Tech Stack
@@ -27,7 +29,7 @@ A system that captures free-form text (ideas, errors, learnings, decisions), gen
 | Layer | Technologies |
 |-------|-------------|
 | **Backend** | Express 4, TypeScript 5, pg 8 |
-| **AI Service** | FastAPI, Sentence Transformers, KeyBERT, Transformers (mDeBERTa) |
+| **AI Service** | FastAPI, Sentence Transformers, KeyBERT, Transformers (mDeBERTa), Groq API |
 | **Database** | PostgreSQL 16 + pgvector (IVFFlat) |
 | **Infrastructure** | Docker Compose |
 
@@ -41,18 +43,32 @@ A system that captures free-form text (ideas, errors, learnings, decisions), gen
                            │
                            ▼
                     ┌──────────────┐
+                    ┌──────────────┐
                     │   FastAPI    │
                     │  Embeddings  │
                     │  + mDeBERTa  │
+                    └──────┬───────┘
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │   Groq API   │
+                    │ Llama 3.3 70B│
                     └──────────────┘
 ```
 
-**Main flow:**
+**Entry flow:**
 1. User sends text via `POST /api/entries`
 2. Backend requests dual embeddings from the AI service
 3. Searches for similar concepts using cosine similarity (threshold 0.55)
 4. If match found → reinforces the existing concept
 5. If no match → creates a new concept with summary and keywords
+
+**Chat flow (RAG):**
+1. User asks a question via `POST /api/chat`
+2. Backend searches relevant concepts using pgvector semantic search
+3. Enriches context with actual entry texts from top matching concepts
+4. AI service sends context + conversation history to Groq API (Llama 3.3 70B)
+5. Returns response with source references
 
 ## Getting Started
 
@@ -86,6 +102,9 @@ AUTH_USERNAME=admin
 AUTH_PASSWORD=your-secure-password
 JWT_SECRET=your-random-secret-key
 JWT_EXPIRES_IN=90d
+
+# Chat (Groq) - get your free key at https://console.groq.com
+GROQ_API_KEY=gsk_your-groq-api-key
 ```
 
 4. Start the services:
@@ -119,6 +138,7 @@ cd ai-service && pip install -r requirements.txt && uvicorn main:app --reload
 | `/api/concepts/:id` | DELETE | Yes | Delete concept |
 | `/api/concepts/search` | POST | Yes | Semantic concept search |
 | `/api/concepts/reclassify` | POST | Yes | Reclassify all concepts |
+| `/api/chat` | POST | Yes | Chat with RAG context from stored knowledge |
 
 ### Manual entry management (`PUT /api/entries/:id/concept`)
 
@@ -167,12 +187,12 @@ GLaDos/
 │   ├── src/
 │   │   ├── config/         # Environment variables
 │   │   ├── services/       # Business logic
-│   │   ├── routes/         # REST endpoints
+│   │   ├── routes/         # REST endpoints (incl. chat)
 │   │   ├── queries/        # Parameterized SQL
 │   │   └── types/          # TypeScript interfaces
 │   └── public/             # PWA frontend
 ├── ai-service/             # Python + FastAPI
-│   └── main.py             # Embeddings + KeyBERT + zero-shot classification
+│   └── main.py             # Embeddings + KeyBERT + zero-shot + Groq chat
 ├── db/
 │   └── init.sql            # Schema with pgvector
 └── docker-compose.yml

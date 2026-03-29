@@ -109,27 +109,45 @@ class ConceptService {
     embeddingPhrase: number[],
     embeddingTopic: number[]
   ): Promise<ConceptAssociationResult> {
-    const similar = await this.findSimilarByTopic(embeddingTopic, 1);
+    // Clasificar la entry primero para poder comparar tipos
+    let entryType: ConceptType | undefined;
+    let entryConfidence: number | undefined;
+    try {
+      const classifyResult = await aiService.classifyType(text);
+      entryType = classifyResult.concept_type as ConceptType;
+      entryConfidence = classifyResult.confidence;
+      console.log(`[Concept] Entry classified as: ${entryType} (confidence: ${entryConfidence})`);
+    } catch (error) {
+      console.error('[Concept] Error classifying entry:', error);
+    }
 
-    if (similar.length > 0) {
-      const match = similar[0];
+    // Buscar candidatos (traemos más para poder filtrar tras penalizar)
+    const candidates = await this.findSimilarByTopic(embeddingTopic, 5);
 
-      // Clasificar la entry para mostrar su tipo real
-      let entryType: ConceptType | undefined;
-      let entryConfidence: number | undefined;
-      try {
-        const classifyResult = await aiService.classifyType(text);
-        entryType = classifyResult.concept_type as ConceptType;
-        entryConfidence = classifyResult.confidence;
-        console.log(`[Concept] Entry classified as: ${entryType} (confidence: ${entryConfidence})`);
-      } catch (error) {
-        console.error('[Concept] Error classifying entry:', error);
+    // Penalizar similitud si el tipo no coincide
+    const scored = candidates.map(c => {
+      const typeMismatch = entryType && c.type && entryType !== c.type;
+      const effectiveSimilarity = typeMismatch
+        ? c.similarity - CONCEPT.TYPE_MISMATCH_PENALTY
+        : c.similarity;
+
+      if (typeMismatch) {
+        console.log(`[Concept] Type mismatch penalty: "${c.title}" (${c.type}) vs entry (${entryType}), similarity ${c.similarity.toFixed(3)} -> ${effectiveSimilarity.toFixed(3)}`);
       }
 
+      return { ...c, effectiveSimilarity };
+    });
+
+    // Filtrar por umbral efectivo y tomar el mejor
+    const match = scored
+      .filter(c => c.effectiveSimilarity >= CONCEPT.TOPIC_SIMILARITY_THRESHOLD)
+      .sort((a, b) => b.effectiveSimilarity - a.effectiveSimilarity)[0];
+
+    if (match) {
       await this.linkEntry(entryId, match.id, match.similarity, entryType);
       await this.reinforce(match.id);
 
-      console.log(`[Concept] Entry matched existing concept: "${match.title}" (topic similarity: ${match.similarity.toFixed(3)}, weight: ${match.weight}, state: ${match.state})`);
+      console.log(`[Concept] Entry matched existing concept: "${match.title}" (topic similarity: ${match.similarity.toFixed(3)}, effective: ${match.effectiveSimilarity.toFixed(3)}, weight: ${match.weight}, state: ${match.state})`);
 
       return {
         action: 'associated',
