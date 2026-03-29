@@ -27,6 +27,22 @@ class ClassifyResponse(BaseModel):
     confidence: float
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    history: list[ChatMessage] = []
+    context: str = ""
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    model: str
+
+
 class ClassifyDebugResponse(BaseModel):
     concept_type: str
     confidence: float

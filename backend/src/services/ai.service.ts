@@ -112,6 +112,20 @@ class AiService implements HealthChecker {
 
     return response.json() as Promise<SummaryResponse>;
   }
+
+  async chat(message: string, history: { role: string; content: string }[], context: string): Promise<{ reply: string; model: string }> {
+    const response = await fetch(`${this.baseUrl}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, history, context }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI service error: ${response.status}`);
+    }
+
+    return response.json() as Promise<{ reply: string; model: string }>;
+  }
 }
 
 export const aiService = new AiService();
