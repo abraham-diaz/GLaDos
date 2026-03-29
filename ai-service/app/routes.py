@@ -1,11 +1,13 @@
 from datetime import datetime
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from . import models
 from .schemas import (
     AnalyzeRequest, EmbeddingResponse, DualEmbeddingResponse,
     SummaryResponse, ClassifyResponse, ClassifyDebugResponse,
+    ChatRequest, ChatResponse,
 )
 from .classifier import classify_zero_shot, classify_with_debug
+from .config import CHAT_SYSTEM_PROMPT
 
 router = APIRouter()
 
@@ -97,3 +99,26 @@ async def classify(req: AnalyzeRequest):
 async def classify_debug(req: AnalyzeRequest):
     """Clasificación con info de debug — útil para afinar el sistema"""
     return classify_with_debug(req.text)
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat(req: ChatRequest):
+    """Chat con Groq usando contexto RAG de la base de conocimiento"""
+    if models.groq_client is None:
+        raise HTTPException(status_code=503, detail="Chat not available: GROQ_API_KEY not configured")
+
+    system_content = CHAT_SYSTEM_PROMPT.format(context=req.context or "No hay contexto disponible.")
+
+    messages = [{"role": "system", "content": system_content}]
+    messages.extend([{"role": m.role, "content": m.content} for m in req.history])
+    messages.append({"role": "user", "content": req.message})
+
+    completion = models.groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=messages,
+        temperature=0.7,
+        max_tokens=1024,
+    )
+
+    reply = completion.choices[0].message.content
+    return ChatResponse(reply=reply, model=completion.model)

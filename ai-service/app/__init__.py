@@ -1,8 +1,10 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sentence_transformers import SentenceTransformer
 from keybert import KeyBERT
 from transformers import pipeline
+from groq import Groq
 
 from . import models
 from .routes import router
@@ -28,6 +30,13 @@ async def lifespan(app: FastAPI):
         model="MoritzLaurer/mDeBERTa-v3-base-mnli-xnli",
     )
     print("mDeBERTa loaded!")
+
+    groq_api_key = os.environ.get("GROQ_API_KEY")
+    if groq_api_key:
+        models.groq_client = Groq(api_key=groq_api_key)
+        print("Groq client initialized!")
+    else:
+        print("WARNING: GROQ_API_KEY not set, chat will be unavailable")
 
     yield
     print("Shutting down...")
