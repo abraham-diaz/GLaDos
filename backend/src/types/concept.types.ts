@@ -16,6 +16,7 @@ export interface Concept {
 export interface SimilarConcept {
   id: string;
   title: string;
+  type: string;
   state: ConceptState;
   summary: string | null;
   weight: number;

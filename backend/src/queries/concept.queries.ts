@@ -1,8 +1,8 @@
 export const conceptQueries = {
   findSimilarByTopic: `
-    SELECT id, title, state, summary, weight, similarity
+    SELECT id, title, type, state, summary, weight, similarity
     FROM (
-      SELECT id, title, state, summary, weight,
+      SELECT id, title, type, state, summary, weight,
              1 - (embedding_topic <=> $1::vector) as similarity
       FROM concepts
       WHERE embedding_topic IS NOT NULL
