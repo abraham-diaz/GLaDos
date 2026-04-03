@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { postgresService } from './postgres.service';
 import { aiService } from './ai.service';
 import { conceptService } from './concept.service';
+import { conceptProcessor } from './concept.processor';
 import { CreateEntryRequest, CreateEntryResponse } from '../types/entry.types';
 import { entryQueries } from '../queries/entry.queries';
 
@@ -13,9 +14,7 @@ interface ReassignResult {
 }
 
 class EntryService {
-  /**
-   * Desasocia una entry de su concepto actual
-   */
+  
   async unlinkFromConcept(entryId: string): Promise<ReassignResult> {
     const pool = postgresService.getPool();
 
@@ -32,9 +31,7 @@ class EntryService {
     return { action: 'unlinked', entryId, oldConceptId };
   }
 
-  /**
-   * Reasigna una entry a otro concepto existente
-   */
+  
   async reassignToConcept(entryId: string, newConceptId: string): Promise<ReassignResult> {
     const pool = postgresService.getPool();
 
@@ -44,13 +41,13 @@ class EntryService {
     const linked = await pool.query(entryQueries.getLinkedConcept, [entryId]);
     const oldConceptId = linked.rows[0]?.concept_id;
 
-    // Desasociar del concepto anterior
+    
     await pool.query(entryQueries.unlinkConcept, [entryId]);
     if (oldConceptId) {
       await conceptService.decrementWeight(oldConceptId);
     }
 
-    // Asociar al nuevo concepto
+    
     await conceptService.linkEntry(entryId, newConceptId, 1.0);
     await conceptService.reinforce(newConceptId);
 
@@ -58,9 +55,7 @@ class EntryService {
     return { action: 'reassigned', entryId, oldConceptId, newConceptId };
   }
 
-  /**
-   * Crea un concepto nuevo a partir de una entry existente
-   */
+ 
   async createConceptFromEntry(entryId: string): Promise<ReassignResult> {
     const pool = postgresService.getPool();
 
@@ -69,7 +64,7 @@ class EntryService {
 
     const { raw_text } = entry.rows[0];
 
-    // Desasociar del concepto anterior
+    
     const linked = await pool.query(entryQueries.getLinkedConcept, [entryId]);
     const oldConceptId = linked.rows[0]?.concept_id;
 
@@ -78,9 +73,9 @@ class EntryService {
       await conceptService.decrementWeight(oldConceptId);
     }
 
-    // Generar embeddings y crear concepto nuevo
+  
     const { embedding_phrase, embedding_topic } = await aiService.getDualEmbedding(raw_text);
-    const newConceptId = await conceptService.create(raw_text, embedding_phrase, embedding_topic);
+    const newConceptId = await conceptProcessor.createEnrichedConcept(raw_text, embedding_phrase, embedding_topic);
     await conceptService.linkEntry(entryId, newConceptId, 1.0);
 
     console.log(`[Entry] CREATED new concept from entry ${entryId}: ${newConceptId}`);
@@ -93,20 +88,19 @@ class EntryService {
 
     console.log(`[Entry] Creating entry: ${id}`);
 
-    // Obtener ambos embeddings del servicio AI
+    
     const { embedding_phrase, embedding_topic } = await aiService.getDualEmbedding(data.raw_text);
 
-    // Formato para pgvector: '[0.1, 0.2, ...]'
+    
     const embeddingStr = `[${embedding_phrase.join(',')}]`;
 
     await pool.query(entryQueries.create, [id, data.raw_text, embeddingStr]);
 
     console.log(`[Entry] Entry created successfully: ${id}`);
 
-    // Procesar asociación automática de conceptos (usa embedding_topic para similitud)
     let context;
     try {
-      const conceptResult = await conceptService.processEntry(
+      const conceptResult = await conceptProcessor.processEntry(
         id,
         data.raw_text,
         embedding_phrase,
@@ -115,7 +109,6 @@ class EntryService {
       console.log(`[Entry] Concept ${conceptResult.action}: "${conceptResult.conceptTitle}"`);
       context = conceptResult.context;
     } catch (error) {
-      // Log pero no fallar la creación de entry
       console.error('[Entry] Error processing concept association:', error);
     }
 
