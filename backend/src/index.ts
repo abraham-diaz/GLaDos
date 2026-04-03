@@ -25,6 +25,11 @@ app.use('/api/analyze', authMiddleware, analyzeRoutes);
 app.use('/api/concepts', authMiddleware, conceptRoutes);
 app.use('/api/chat', authMiddleware, chatRoutes);
 
+// SPA fallback — serve index.html for any non-API route
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
 app.listen(config.port, async () => {
   console.log(`Backend running on port ${config.port}`);
   await postgresService.runMigrations();

@@ -8,7 +8,22 @@ body {
   font-family: 'Courier New', monospace;
   background: #0a0a0a;
   color: #e0e0e0;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#appContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* Header */
@@ -40,6 +55,9 @@ main {
   padding: 2rem;
   max-width: 1400px;
   margin: 0 auto;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Panels */
@@ -65,6 +83,8 @@ main {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 textarea {
@@ -142,13 +162,16 @@ button:disabled {
   flex: 1.2;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .concepts-list {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  max-height: 70vh;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 

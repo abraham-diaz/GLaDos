@@ -6,6 +6,9 @@ CLAUDE.md
 node_modules/
 dist/
 *.log
+
+# Frontend build output
+backend/public/
 npm-debug.log*
 
 # Python
