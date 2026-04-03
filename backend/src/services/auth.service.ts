@@ -9,9 +9,7 @@ export interface TokenPayload {
 }
 
 class AuthService {
-  /**
-   * Validates username and password
-   */
+  
   validateCredentials(username: string, password: string): boolean {
     const validUsername = config.auth.username;
     const validPassword = config.auth.password;
@@ -33,9 +31,6 @@ class AuthService {
     return usernameMatch && passwordMatch;
   }
 
-  /**
-   * Generates a JWT token
-   */
   generateToken(username: string): string {
     const options: SignOptions = {
       expiresIn: config.auth.jwtExpiresIn as jwt.SignOptions['expiresIn'],
@@ -43,9 +38,6 @@ class AuthService {
     return jwt.sign({ username }, config.auth.jwtSecret, options);
   }
 
-  /**
-   * Verifies a JWT token
-   */
   verifyToken(token: string): TokenPayload | null {
     try {
       return jwt.verify(token, config.auth.jwtSecret) as TokenPayload;

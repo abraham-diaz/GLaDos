@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { conceptService } from '../services/concept.service';
+import { conceptProcessor } from '../services/concept.processor';
 import { aiService } from '../services/ai.service';
 
 const router = Router();
@@ -13,15 +14,15 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    // 1. Buscar conceptos relevantes con búsqueda semántica
-    const concepts = await conceptService.search(message.trim(), 5);
+    // 1. Schearch for relevant concepts using semantic search
+    const concepts = await conceptProcessor.search(message.trim(), 5);
 
-    // 2. Enriquecer con entries reales de los top 3 conceptos
+    // 2. Enrich with actual entries from the top 3 concepts
     const details = await Promise.all(
       concepts.slice(0, 3).map(c => conceptService.getDetail(c.id))
     );
 
-    // 3. Construir contexto rico para el LLM
+    //3. Build rich context for the LLM
     const context = details
       .filter(d => d !== null)
       .map(d => {
@@ -34,10 +35,9 @@ router.post('/', async (req: Request, res: Response) => {
       })
       .join('\n\n');
 
-    // 4. Llamar al chat de Groq via ai-service
+    // 4. Call the Groq chat via ai-service
     const result = await aiService.chat(message.trim(), history || [], context);
 
-    // 5. Responder con reply y fuentes
     res.json({
       reply: result.reply,
       sources: concepts.slice(0, 3).map(c => ({

@@ -1,14 +1,32 @@
 import { randomUUID } from 'crypto';
 import { postgresService } from './postgres.service';
-import { aiService } from './ai.service';
-import { SimilarConcept, ConceptAssociationResult, ConceptState, ConceptType, ConceptDetail, ConceptDetailEntry } from '../types/concept.types';
+import { SimilarConcept, ConceptState, ConceptDetail, ConceptDetailEntry } from '../types/concept.types';
 import { CONCEPT } from '../constants';
 import { conceptQueries } from '../queries/concept.queries';
 
+interface CreateConceptData {
+  text: string;
+  embeddingPhrase: number[];
+  embeddingTopic: number[];
+  type: string;
+  summary: string | null;
+}
+
 class ConceptService {
-  /**
-   * Busca conceptos similares basándose en embedding_topic (MPNet)
-   */
+
+  generateTitle(text: string): string {
+    const words = text.trim().split(/\s+/).slice(0, 5);
+    let title = words.join(' ');
+
+    if (title.length > 50) {
+      title = title.substring(0, 47) + '...';
+    }
+
+    return title || 'Sin título';
+  }
+
+  //Search for similar concepts based on embedding_topic (MPNet)
+
   async findSimilarByTopic(embeddingTopic: number[], limit = 5): Promise<SimilarConcept[]> {
     const pool = postgresService.getPool();
     const embeddingStr = `[${embeddingTopic.join(',')}]`;
@@ -21,62 +39,26 @@ class ConceptService {
     return result.rows;
   }
 
-  /**
-   * Genera un título simple a partir del texto
-   */
-  private generateTitle(text: string): string {
-    const words = text.trim().split(/\s+/).slice(0, 5);
-    let title = words.join(' ');
+  //Create a new concept with pre-computed data
 
-    if (title.length > 50) {
-      title = title.substring(0, 47) + '...';
-    }
-
-    return title || 'Sin título';
-  }
-
-  /**
-   * Crea un nuevo concepto con ambos embeddings y summary
-   */
-  async create(
-    text: string,
-    embeddingPhrase: number[],
-    embeddingTopic: number[]
-  ): Promise<string> {
+  async create(data: CreateConceptData): Promise<string> {
     const pool = postgresService.getPool();
     const id = randomUUID();
-    const title = this.generateTitle(text);
-    const embeddingPhraseStr = `[${embeddingPhrase.join(',')}]`;
-    const embeddingTopicStr = `[${embeddingTopic.join(',')}]`;
+    const title = this.generateTitle(data.text);
+    const embeddingPhraseStr = `[${data.embeddingPhrase.join(',')}]`;
+    const embeddingTopicStr = `[${data.embeddingTopic.join(',')}]`;
 
-    // Clasificar tipo y generar summary en paralelo
-    let summary: string | null = null;
-    let conceptType = 'idea';
-    try {
-      const [summaryResult, classifyResult] = await Promise.all([
-        aiService.getSummary(text),
-        aiService.classifyType(text),
-      ]);
-      summary = summaryResult.summary;
-      conceptType = classifyResult.concept_type;
-      console.log(`[Concept] Keywords extracted: [${summaryResult.keywords.join(', ')}]`);
-      console.log(`[Concept] Classified as: ${conceptType} (confidence: ${classifyResult.confidence})`);
-    } catch (error) {
-      console.error('[Concept] Error generating summary/classifying:', error);
-    }
-
-    await pool.query(conceptQueries.create, [id, title, conceptType, embeddingPhraseStr, embeddingTopicStr, summary]);
+    await pool.query(conceptQueries.create, [id, title, data.type, embeddingPhraseStr, embeddingTopicStr, data.summary]);
 
     console.log(`[Concept] CREATED new concept: "${title}" (${id})`);
-    if (summary) {
-      console.log(`[Concept] Summary: "${summary}"`);
+    if (data.summary) {
+      console.log(`[Concept] Summary: "${data.summary}"`);
     }
     return id;
   }
 
-  /**
-   * Refuerza un concepto existente
-   */
+  //Strengthen an existing concept
+
   async reinforce(conceptId: string): Promise<void> {
     const pool = postgresService.getPool();
 
@@ -89,9 +71,8 @@ class ConceptService {
     console.log(`[Concept] REINFORCED concept: ${conceptId} (weight: ${weight}, state: ${state})`);
   }
 
-  /**
-   * Asocia una entry a un concepto
-   */
+  //Associates an entry to a concept
+
   async linkEntry(entryId: string, conceptId: string, similarity: number, entryType?: string): Promise<void> {
     const pool = postgresService.getPool();
 
@@ -100,89 +81,9 @@ class ConceptService {
     console.log(`[Concept] LINKED entry ${entryId} -> concept ${conceptId} (similarity: ${similarity.toFixed(3)}, type: ${entryType || 'n/a'})`);
   }
 
-  /**
-   * Procesa automáticamente una entry para asociarla/crear concepto
-   */
-  async processEntry(
-    entryId: string,
-    text: string,
-    embeddingPhrase: number[],
-    embeddingTopic: number[]
-  ): Promise<ConceptAssociationResult> {
-    // Clasificar la entry primero para poder comparar tipos
-    let entryType: ConceptType | undefined;
-    let entryConfidence: number | undefined;
-    try {
-      const classifyResult = await aiService.classifyType(text);
-      entryType = classifyResult.concept_type as ConceptType;
-      entryConfidence = classifyResult.confidence;
-      console.log(`[Concept] Entry classified as: ${entryType} (confidence: ${entryConfidence})`);
-    } catch (error) {
-      console.error('[Concept] Error classifying entry:', error);
-    }
+  //Search concepts by pre-computed embedding
 
-    // Buscar candidatos (traemos más para poder filtrar tras penalizar)
-    const candidates = await this.findSimilarByTopic(embeddingTopic, 5);
-
-    // Penalizar similitud si el tipo no coincide
-    const scored = candidates.map(c => {
-      const typeMismatch = entryType && c.type && entryType !== c.type;
-      const effectiveSimilarity = typeMismatch
-        ? c.similarity - CONCEPT.TYPE_MISMATCH_PENALTY
-        : c.similarity;
-
-      if (typeMismatch) {
-        console.log(`[Concept] Type mismatch penalty: "${c.title}" (${c.type}) vs entry (${entryType}), similarity ${c.similarity.toFixed(3)} -> ${effectiveSimilarity.toFixed(3)}`);
-      }
-
-      return { ...c, effectiveSimilarity };
-    });
-
-    // Filtrar por umbral efectivo y tomar el mejor
-    const match = scored
-      .filter(c => c.effectiveSimilarity >= CONCEPT.TOPIC_SIMILARITY_THRESHOLD)
-      .sort((a, b) => b.effectiveSimilarity - a.effectiveSimilarity)[0];
-
-    if (match) {
-      await this.linkEntry(entryId, match.id, match.similarity, entryType);
-      await this.reinforce(match.id);
-
-      console.log(`[Concept] Entry matched existing concept: "${match.title}" (topic similarity: ${match.similarity.toFixed(3)}, effective: ${match.effectiveSimilarity.toFixed(3)}, weight: ${match.weight}, state: ${match.state})`);
-
-      return {
-        action: 'associated',
-        conceptId: match.id,
-        conceptTitle: match.title,
-        similarity: match.similarity,
-        context: {
-          conceptId: match.id,
-          title: match.title,
-          state: match.state,
-          summary: match.summary,
-          similarity: match.similarity,
-          weight: match.weight + 1,
-          entryType,
-          entryConfidence,
-        },
-      };
-    } else {
-      const conceptId = await this.create(text, embeddingPhrase, embeddingTopic);
-      const title = this.generateTitle(text);
-
-      await this.linkEntry(entryId, conceptId, 1.0);
-
-      return {
-        action: 'created',
-        conceptId,
-        conceptTitle: title,
-      };
-    }
-  }
-
-  /**
-   * Búsqueda semántica de conceptos por texto
-   */
-  async search(query: string, limit = 10): Promise<{
+  async searchByEmbedding(embeddingTopic: number[], limit: number, query: string): Promise<{
     id: string;
     title: string;
     type: string;
@@ -192,10 +93,7 @@ class ConceptService {
     similarity: number;
   }[]> {
     const pool = postgresService.getPool();
-
-    // Obtener embedding del query
-    const { embedding_topic } = await aiService.getDualEmbedding(query);
-    const embeddingStr = `[${embedding_topic.join(',')}]`;
+    const embeddingStr = `[${embeddingTopic.join(',')}]`;
 
     const result = await pool.query(conceptQueries.search, [embeddingStr, limit]);
 
@@ -203,9 +101,8 @@ class ConceptService {
     return result.rows;
   }
 
-  /**
-   * Obtiene el detalle de un concepto con sus entries vinculadas
-   */
+  //Get the detail of a concept with its linked entries
+
   async getDetail(id: string): Promise<ConceptDetail | null> {
     const pool = postgresService.getPool();
 
@@ -220,9 +117,6 @@ class ConceptService {
     };
   }
 
-  /**
-   * Lista todos los conceptos con sus estadísticas
-   */
   async list(): Promise<{
     id: string;
     title: string;
@@ -238,9 +132,7 @@ class ConceptService {
     const result = await pool.query(conceptQueries.list);
     return result.rows;
   }
-  /**
-   * Decrementa el peso de un concepto (cuando se desasocia una entry)
-   */
+
   async decrementWeight(conceptId: string): Promise<void> {
     const pool = postgresService.getPool();
     const result = await pool.query(conceptQueries.decrementWeight, [conceptId]);
@@ -250,9 +142,6 @@ class ConceptService {
     }
   }
 
-  /**
-   * Elimina un concepto por ID (CASCADE borra entry_concept)
-   */
   async delete(id: string): Promise<boolean> {
     const pool = postgresService.getPool();
     const result = await pool.query(conceptQueries.delete, [id]);
@@ -263,36 +152,21 @@ class ConceptService {
     return deleted;
   }
 
-  /**
-   * Reclasifica todos los conceptos existentes según el texto de su entry más relevante
-   */
-  async reclassifyAll(): Promise<{ total: number; updated: number; results: { id: string; from: string; to: string }[] }> {
+  async getAllWithTopEntry(): Promise<{ id: string; raw_text: string }[]> {
     const pool = postgresService.getPool();
+    const result = await pool.query<{ id: string; raw_text: string }>(conceptQueries.getAllWithTopEntry);
+    return result.rows;
+  }
 
-    const conceptsResult = await pool.query<{ id: string; raw_text: string }>(conceptQueries.getAllWithTopEntry);
-    const results: { id: string; from: string; to: string }[] = [];
-    let updated = 0;
+  async getTypeById(id: string): Promise<string> {
+    const pool = postgresService.getPool();
+    const result = await pool.query(conceptQueries.getById, [id]);
+    return result.rows[0]?.type || 'idea';
+  }
 
-    for (const row of conceptsResult.rows) {
-      const currentType = (await pool.query(conceptQueries.getById, [row.id])).rows[0]?.type || 'idea';
-
-      try {
-        const { concept_type } = await aiService.classifyType(row.raw_text);
-
-        if (concept_type !== currentType) {
-          await pool.query(conceptQueries.updateType, [row.id, concept_type]);
-          updated++;
-          console.log(`[Reclassify] ${row.id}: ${currentType} -> ${concept_type}`);
-        }
-
-        results.push({ id: row.id, from: currentType, to: concept_type });
-      } catch (error) {
-        console.error(`[Reclassify] Error for ${row.id}:`, error);
-        results.push({ id: row.id, from: currentType, to: currentType });
-      }
-    }
-
-    return { total: conceptsResult.rows.length, updated, results };
+  async updateType(id: string, type: string): Promise<void> {
+    const pool = postgresService.getPool();
+    await pool.query(conceptQueries.updateType, [id, type]);
   }
 }
 

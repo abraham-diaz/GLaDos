@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { conceptService } from '../services/concept.service';
+import { conceptProcessor } from '../services/concept.processor';
 
 const router = Router();
 
@@ -20,7 +21,7 @@ router.get('/', async (_req: Request, res: Response) => {
 
 router.post('/reclassify', async (_req: Request, res: Response) => {
   try {
-    const result = await conceptService.reclassifyAll();
+    const result = await conceptProcessor.reclassifyAll();
     res.json(result);
   } catch (error) {
     res.status(500).json({
@@ -71,7 +72,7 @@ router.post('/search', async (req: Request, res: Response) => {
       return;
     }
 
-    const concepts = await conceptService.search(query.trim(), limit || 10);
+    const concepts = await conceptProcessor.search(query.trim(), limit || 10);
     res.json({
       query: query.trim(),
       count: concepts.length,

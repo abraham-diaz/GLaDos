@@ -17,7 +17,9 @@ services:
       - "5432:5432"
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: glados-backend
     ports:
       - "3000:3000"

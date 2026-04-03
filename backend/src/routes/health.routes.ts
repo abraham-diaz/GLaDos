@@ -5,14 +5,13 @@ import { aiService } from '../services/ai.service';
 
 const router = Router();
 
-// Registro de todos los servicios a verificar
+// Each service must implement the HealthChecker interface
 const healthCheckers: HealthChecker[] = [
   postgresService,
   aiService,
 ];
 
 router.get('/', async (_req: Request, res: Response) => {
-  // Ejecutar todas las verificaciones en paralelo
   const results = await Promise.all(
     healthCheckers.map(async (checker) => ({
       name: checker.name,
@@ -20,7 +19,6 @@ router.get('/', async (_req: Request, res: Response) => {
     }))
   );
 
-  // Construir respuesta
   const services = results.reduce(
     (acc, { name, status }) => ({ ...acc, [name]: status }),
     {}
