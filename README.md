@@ -22,12 +22,13 @@ A system that captures free-form text (ideas, errors, learnings, decisions), gen
 - **Manual corrections** - Reassign, unlink, or create new concepts from entries when the model gets it wrong
 - **RAG Chat** - Conversational AI (Groq/Llama 3.3 70B) that answers questions using your stored knowledge as context
 - **Save chat replies** - Edit and save assistant messages as new entries to capture insights
-- **PWA** - Web interface with offline support and JWT authentication
+- **React Frontend** - React 19 + Vite + TypeScript SPA with JWT authentication
 
 ## Tech Stack
 
 | Layer | Technologies |
 |-------|-------------|
+| **Frontend** | React 19, TypeScript 5, Vite 6 |
 | **Backend** | Express 4, TypeScript 5, pg 8 |
 | **AI Service** | FastAPI, Sentence Transformers, KeyBERT, Transformers (mDeBERTa), Groq API |
 | **Database** | PostgreSQL 16 + pgvector (IVFFlat) |
@@ -37,12 +38,11 @@ A system that captures free-form text (ideas, errors, learnings, decisions), gen
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   PWA       │────▶│   Express   │────▶│  PostgreSQL │
-│  (Frontend) │     │  (Backend)  │     │  + pgvector │
+│   React     │────▶│   Express   │────▶│  PostgreSQL │
+│  (Vite SPA) │     │  (Backend)  │     │  + pgvector │
 └─────────────┘     └──────┬──────┘     └─────────────┘
                            │
                            ▼
-                    ┌──────────────┐
                     ┌──────────────┐
                     │   FastAPI    │
                     │  Embeddings  │
@@ -117,6 +117,9 @@ docker-compose up --build
 ### Local Development
 
 ```bash
+# Frontend
+cd frontend && npm install && npm run dev
+
 # Backend (requires DB and AI service running)
 cd backend && npm install && npm run dev
 
@@ -183,6 +186,13 @@ Classified automatically using zero-shot NLI (`mDeBERTa-v3-base-mnli-xnli`):
 
 ```
 GLaDos/
+├── frontend/                # React 19 + Vite + TypeScript
+│   └── src/
+│       ├── api/            # API clients (auth, entries, concepts, chat)
+│       ├── components/     # UI components (Chat, ConceptModal, etc.)
+│       ├── hooks/          # Custom hooks (useAuth)
+│       ├── types/          # TypeScript interfaces
+│       └── utils/          # Helpers (formatDate)
 ├── backend/                 # Node.js + Express + TypeScript
 │   ├── src/
 │   │   ├── config/         # Environment variables
@@ -190,9 +200,10 @@ GLaDos/
 │   │   ├── routes/         # REST endpoints (incl. chat)
 │   │   ├── queries/        # Parameterized SQL
 │   │   └── types/          # TypeScript interfaces
-│   └── public/             # PWA frontend
+│   └── public/             # Static assets
 ├── ai-service/             # Python + FastAPI
-│   └── main.py             # Embeddings + KeyBERT + zero-shot + Groq chat
+│   ├── main.py             # Entry point
+│   └── app/                # Classifier, routes, schemas, config
 ├── db/
 │   └── init.sql            # Schema with pgvector
 └── docker-compose.yml
