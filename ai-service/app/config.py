@@ -15,11 +15,12 @@ LABEL_TO_TYPE = {
 
 HYPOTHESIS_TEMPLATE = "Este texto describe {}."
 
-# Si la diferencia entre el 1er y 2do score es menor a este margen,
-# se considera ambiguo y se aplica desempate por keywords
+# If the difference between the 1st and 2nd score is less than this margin, 
+# the classification is considered ambiguous and tie-breaking by keywords is applied. 
+
 AMBIGUITY_MARGIN = 0.15
 
-# Palabras clave de refuerzo por tipo (desempate cuando zero-shot es ambiguo)
+# Keywords to boost for each type (used for tie-breaking when zero-shot classification is ambiguous)
 TYPE_KEYWORDS = {
     "idea": ["hacer", "crear", "construir", "implementar", "diseñar", "propongo", "podríamos",
              "sería bueno", "paquete", "herramienta", "sistema", "app", "proyecto", "agregar",

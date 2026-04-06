@@ -19,5 +19,7 @@ jobs:
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
             cd /opt/GLaDos
+            git checkout -- .
+            git clean -fd
             git pull origin main
             docker-compose up -d --build
